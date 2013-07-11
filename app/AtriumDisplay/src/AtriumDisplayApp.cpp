@@ -63,7 +63,12 @@ void AtriumDisplayApp::prepareSettings( Settings *settings )
 
 void AtriumDisplayApp::setup()
 {
-    setWindowSize(getDisplay()->getWidth(), round(getDisplay()->getWidth()*(9./(16*3))));
+    if(abs((getDisplay()->getHeight()/getDisplay()->getWidth())-(9./(16*3))) < 0.2) {
+        setWindowSize(getDisplay()->getWidth(), getDisplay()->getHeight());
+        setFullScreen(true);
+    } else {
+        setWindowSize(getDisplay()->getWidth(), round(getDisplay()->getWidth()*(9./(16*3))));
+    }
  
     // fonts
     gl::TextureFont::Format f;
@@ -149,7 +154,7 @@ void AtriumDisplayApp::update()
             case 1:
                 timeline().apply( &mStripesSquareness, 0.0f, 2.0f,EaseInElastic(2, 1) );
                 timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
-                timeline().apply( &mStripesPosition, Vec2f(-1,0), 2.5f,EaseInOutQuad() ).delay(2.0).finishFn( triggerTransition );
+                timeline().apply( &mStripesPosition, Vec2f(-1,0), 5.f,EaseInQuad() ).delay(2.0).finishFn( triggerTransition );
                 timeline().apply( &mStripesNoise, 1.0f, 1.5f,EaseInOutQuad() );
                 mTransitionStateNext = 4;
                 break;
@@ -181,9 +186,6 @@ void AtriumDisplayApp::update()
         }
         gTriggerTransition = false;
     }
-
-    
-
 }
 
 void AtriumDisplayApp::draw()
@@ -216,16 +218,18 @@ void AtriumDisplayApp::draw()
     }
     
     if(mStripesFade > 0){
-        gl::color(1.,.9,0., mStripesFade);
-        
+        gl::color(1.,.9,0., mStripesFade*0.33);
+
         vector<PolyLine2f> stripe;
         stripe.push_back( PolyLine2f() );
         stripe.back().push_back( Vec2f( lerp(getWindowHeight(),0,mStripesSquareness), 0 ) );
         stripe.back().push_back( Vec2f( getWindowWidth()/3., 0 ) );
         stripe.back().push_back( Vec2f( (getWindowWidth()/3.)-lerp(getWindowHeight(),0,mStripesSquareness), getWindowHeight() ) );
         stripe.back().push_back( Vec2f( 0, getWindowHeight()) );
-        
+
+//        for (int i=0; i<5; i++) {
         gl::pushMatrices();
+//            gl::translate(Vec2f((i-3.f)*2*((Vec2f)mStripesPosition).x,0));
         gl::translate(((Vec2f)mStripesPosition).x * getWindowWidth(), ((Vec2f)mStripesPosition).y * getWindowHeight());
         gl::drawSolid(stripe.back());
         gl::translate(getWindowWidth()/3., 0);
@@ -233,10 +237,8 @@ void AtriumDisplayApp::draw()
         gl::translate(getWindowWidth()/3., 0);
         gl::drawSolid(stripe.back());
         gl::popMatrices();
-        
-        
+//        }
     }
-    
     gl::color(.3,.3,.3);
     gl::drawLine(Vec2f(getWindowWidth()/3., 0), Vec2f(getWindowWidth()/3.,getWindowHeight()));
     gl::drawLine(Vec2f(getWindowWidth()*2/3., 0), Vec2f(getWindowWidth()*2/3.,getWindowHeight()));
