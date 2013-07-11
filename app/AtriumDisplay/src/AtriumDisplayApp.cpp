@@ -109,7 +109,9 @@ class AtriumDisplayApp : public AppNative {
     int                     mTransitionState;
     int                     mTransitionStateNext;
 	double					mLastTime;
-
+    Anim<float>             mHeaderFade;
+    int                     mHeaderStringPos;
+    vector<string>          mHeaderStrings;
 };
 
 void AtriumDisplayApp::prepareSettings( Settings *settings )
@@ -155,16 +157,23 @@ void AtriumDisplayApp::setup()
     
 	mShouldQuit = false;
 	mSurfaces = new ConcurrentCircularBuffer<Surface>( 5 ); // room for 5 images
-	
+
+    // create and launch the thread
+    // mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
+    
     mFullTexture.mBounds = getWindowBounds();
     mLeftTexture.mBounds.set(0, 0, getWindowWidth()/3.f, getWindowHeight());
     mMidTexture.mBounds.set(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, getWindowHeight());
     mRightTexture.mBounds.set(getWindowWidth()*2.f/3.f, 0, getWindowWidth(), getWindowHeight());
-    
+    mHeaderStrings.push_back("Architecture");
+    mHeaderStrings.push_back("People");
+    mHeaderStrings.push_back("Meeting");
+    mHeaderStringPos = 0;
 	mLastTime = getElapsedSeconds();
     mTransitionState = 0; // app just started;
     mTransitionStateNext = 0; // app just started;
     mTitleFade = 0;
+    mHeaderFade = 0;
     mStripesFade = 0;
     mStripesSquareness = 1;
     mStripesPosition = Vec2f(0,0);
@@ -177,7 +186,8 @@ void AtriumDisplayApp::loadImagesThreadFn()
 	vector<Url>	urls;
     
 	// parse the image URLS from the XML feed and push them into 'urls'
-	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/groups_pool.gne?id=52242317293@N01&format=rss_200" );
+	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen," + mHeaderStrings.at(mHeaderStringPos) + "&format=rss_200" );
+    console() << sunFlickrGroup.c_str() << endl;
 	const XmlTree xml( loadUrl( sunFlickrGroup ) );
 	for( XmlTree::ConstIter item = xml.begin( "rss/channel/item" ); item != xml.end(); ++item ) {
 		const XmlTree &urlXml = ( ( *item / "media:content" ) );
@@ -210,18 +220,24 @@ void AtriumDisplayApp::update()
         mTransitionState = mTransitionStateNext;
         switch (mTransitionStateNext) {
             case 0: // start
+                
+                if(mThread.get()){
+                    mThread->join();
+                }
                 // create and launch the thread
+                mHeaderStringPos = (mHeaderStringPos+1)%mHeaderStrings.size();
                 mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
-                timeline().apply( &mTitleFade, float(mTitleFade), 1.0f, 1.5f,EaseInExpo() );
-                timeline().appendTo(&mTitleFade,  1.0f, 0.0f, 3.0f, EaseOutSine()).delay(1.f).finishFn( triggerTransition );
+                timeline().apply( &mTitleFade, 1.0f, 1.5f,EaseInExpo() );
                 timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() ).delay(4.f);
-
+                timeline().appendTo( &mHeaderFade, 1.0f, 1.5f,EaseInQuad() ).delay(4.f);
+                timeline().appendTo(&mTitleFade,  1.0f, 0.0f, 2.0f, EaseOutSine()).delay(1.f).finishFn( triggerTransition );
                 mTransitionStateNext = 1;
                 break;
             case 1:
-                timeline().apply( &mStripesSquareness, 0.0f, 2.0f,EaseOutBounce() );
                 timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
-                timeline().apply( &mStripesPosition, Vec2f(-1,0), 5.f,EaseInQuad() ).delay(2.0).finishFn( triggerTransition );
+                timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(7.f);
+                timeline().apply( &mStripesSquareness, 0.0f, 2.0f,EaseOutQuad() ).delay(2.f);
+                timeline().apply( &mStripesPosition, Vec2f(-1,0), 5.f,EaseInQuad() ).delay(3.5f).finishFn( triggerTransition );
                 timeline().apply( &mStripesNoise, 1.0f, 1.5f,EaseInOutQuad() );
                 mTransitionStateNext = 4;
                 break;
@@ -322,6 +338,20 @@ void AtriumDisplayApp::draw()
         gl::popMatrices();
         }
     }
+    
+    if(mHeaderFade > 0){
+        console() << mHeaderFade << endl;
+        gl::color(0.,0.,0.,mHeaderFade);
+        Vec2f stringDims = mTextureFontLight->measureString( mHeaderStrings.at(mHeaderStringPos) );
+        gl::pushMatrices();
+        float margin = 50;
+        float scale = (getWindowWidth()/3.f)/(stringDims.x+(margin*2.f))*.5f;
+        gl::translate(margin,getWindowHeight()-(margin+fmaxf(0.,mTextureFontLight->getDescent())));
+        gl::scale(scale, scale);
+        mTextureFontLight->drawString( mHeaderStrings.at(mHeaderStringPos) ,Vec2f(((Vec2f)mStripesPosition).x * getWindowWidth()/3.f, 0.f));
+        gl::popMatrices();
+    }
+
     gl::color(.3,.3,.3);
     gl::drawLine(Vec2f(getWindowWidth()/3., 0), Vec2f(getWindowWidth()/3.,getWindowHeight()));
     gl::drawLine(Vec2f(getWindowWidth()*2/3., 0), Vec2f(getWindowWidth()*2/3.,getWindowHeight()));
