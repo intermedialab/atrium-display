@@ -6,6 +6,7 @@
 #include "cinder/ImageIo.h"
 #include "cinder/Thread.h"
 #include "cinder/Rand.h"
+#include "cinder/Perlin.h"
 #include "cinder/ConcurrentCircularBuffer.h"
 #include "cinder/gl/TextureFont.h"
 #include "Resources.h"
@@ -112,6 +113,7 @@ class AtriumDisplayApp : public AppNative {
     Anim<float>             mHeaderFade;
     int                     mHeaderStringPos;
     vector<string>          mHeaderStrings;
+    Perlin                  perlin;
 };
 
 void AtriumDisplayApp::prepareSettings( Settings *settings )
@@ -123,14 +125,14 @@ void AtriumDisplayApp::prepareSettings( Settings *settings )
 
 void AtriumDisplayApp::setup()
 {
-    
+
     if(abs((getDisplay()->getHeight()*1.f/getDisplay()->getWidth())-(9.f/(16.f*3.f))) < 0.1) {
         setWindowSize(getDisplay()->getWidth(), getDisplay()->getHeight());
         setFullScreen(true);
     } else {
         setWindowSize(getDisplay()->getWidth(), round(getDisplay()->getWidth()*(9./(16*3))));
     }
- 
+
     // fonts
     gl::TextureFont::Format f;
     f.enableMipmapping( true );
@@ -155,6 +157,8 @@ void AtriumDisplayApp::setup()
         mTextureFontExtraBold = gl::TextureFont::create( customFont, f );
     }
     
+    perlin.setSeed(randInt());
+    
 	mShouldQuit = false;
 	mSurfaces = new ConcurrentCircularBuffer<Surface>( 5 ); // room for 5 images
 
@@ -165,9 +169,9 @@ void AtriumDisplayApp::setup()
     mLeftTexture.mBounds.set(0, 0, getWindowWidth()/3.f, getWindowHeight());
     mMidTexture.mBounds.set(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, getWindowHeight());
     mRightTexture.mBounds.set(getWindowWidth()*2.f/3.f, 0, getWindowWidth(), getWindowHeight());
+    mHeaderStrings.push_back("Meeting");
     mHeaderStrings.push_back("Architecture");
     mHeaderStrings.push_back("People");
-    mHeaderStrings.push_back("Meeting");
     mHeaderStringPos = 0;
 	mLastTime = getElapsedSeconds();
     mTransitionState = 0; // app just started;
@@ -227,18 +231,26 @@ void AtriumDisplayApp::update()
                 // create and launch the thread
                 mHeaderStringPos = (mHeaderStringPos+1)%mHeaderStrings.size();
                 mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
-                timeline().apply( &mTitleFade, 1.0f, 1.5f,EaseInExpo() );
-                timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() ).delay(4.f);
-                timeline().appendTo( &mHeaderFade, 1.0f, 1.5f,EaseInQuad() ).delay(4.f);
-                timeline().appendTo(&mTitleFade,  1.0f, 0.0f, 2.0f, EaseOutSine()).delay(1.f).finishFn( triggerTransition );
+                timeline().apply( &mStripesSquareness, 0.0f, 0.f,EaseOutQuad() );
+                timeline().apply( &mStripesPosition, Vec2f(1,0), 0.f,EaseInQuad() );
+                timeline().apply( &mStripesNoise, .0f, .5f,EaseOutQuad() );
+                timeline().apply( &mStripesFade, 1.0f, .5f,EaseInOutQuad() );
+                timeline().apply( &mHeaderFade, 0.f, .5f,EaseInQuad() );
+                timeline().appendTo( &mStripesPosition, Vec2f(0,0), 8.f,EaseOutSine() );
+                timeline().appendTo( &mStripesNoise, .5f, 5.f,EaseInOutSine() ).delay(7.5f);
+                timeline().apply( &mTitleFade, 1.0f, 2.5f,EaseOutExpo() ).delay(6.5);
+                timeline().appendTo( &mStripesNoise, .0f, 1.5f,EaseInQuad() ).finishFn(triggerTransition);
+                timeline().appendTo( &mTitleFade,  1.0f, 0.0f, 2.0f, EaseOutSine()).delay(3.f);
+                timeline().appendTo( &mStripesSquareness, 1.0f, 2.5f,EaseInQuad() ).delay(12.f);
                 mTransitionStateNext = 1;
                 break;
             case 1:
+                timeline().apply( &mHeaderFade, 1.f, .5f,EaseInQuad() );
                 timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
-                timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(7.f);
-                timeline().apply( &mStripesSquareness, 0.0f, 2.0f,EaseOutQuad() ).delay(2.f);
-                timeline().apply( &mStripesPosition, Vec2f(-1,0), 5.f,EaseInQuad() ).delay(3.5f).finishFn( triggerTransition );
-                timeline().apply( &mStripesNoise, 1.0f, 1.5f,EaseInOutQuad() );
+                timeline().apply( &mStripesSquareness, 0.0f, 2.0f,EaseOutQuad() ).delay(4.f);
+                timeline().apply( &mStripesPosition, Vec2f(-2,0), 5.f,EaseInQuad() ).delay(5.5f).finishFn( triggerTransition );
+                timeline().apply( &mStripesNoise, 1.f, 7.5f,EaseInQuad() ).delay(3.5f);
+                timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(4.5f) ;
                 mTransitionStateNext = 4;
                 break;
             case 2:
@@ -264,13 +276,15 @@ void AtriumDisplayApp::update()
                     }
 
                     fadingTexture->fadeToSurface(croppedSurface);
-                    timeline().add(triggerTransition, getElapsedSeconds()+randFloat(2.f,5.f));
+                    timeline().add(triggerTransition, getElapsedSeconds()+randFloat(3.5f,5.f));
 
                     mFadedTexture = fadingTexture;
 
                 } else {
-                    mStripesSquareness = 1;
-                    mStripesPosition = Vec2f(0,0);
+                    mStripesSquareness = 0;
+                    mStripesNoise = 0;
+                    mStripesFade = 0;
+                    mStripesPosition = Vec2f(1,0);
                     mTransitionStateNext = 0;
                     if (mFadedTexture == &mFullTexture) {
                         mLeftTexture.fadeToSurface(0);
@@ -283,10 +297,6 @@ void AtriumDisplayApp::update()
                         mRightTexture.fadeToSurface(2.f);
                     }
 
-                    timeline().apply( &mFade, 0.0f, 1.5f );
-                    timeline().apply( &mStripesSquareness, 1.0f, 0.f).delay(2.5);
-                    timeline().apply( &mStripesFade, 0.0f, 0.f);
-                    timeline().apply( &mStripesPosition, Vec2f(0,0), 0.f);
                     timeline().add(triggerTransition, getElapsedSeconds()+2.5);
                 }
                 break;
@@ -306,50 +316,64 @@ void AtriumDisplayApp::draw()
     mRightTexture.draw();
     mFullTexture.draw();
     
-    if(mTitleFade > 0){
-        gl::color(1.,1.,1.,mTitleFade);
-        Vec2f stringDims = mTextureFontBold->measureString( "INTER" );
-        mTextureFontBold->drawString( "INTER", Vec2f((getWindowWidth()/3.)-stringDims.x, getWindowHeight()*0.6) );
-        mTextureFontBold->drawString( "MEDIA", Vec2f((getWindowWidth()/3.), getWindowHeight()*0.6) );
-
-        mTextureFontLight->drawString( "LAB", Vec2f((getWindowWidth()*2/3.), getWindowHeight()*0.6) );
-        
-    }
-    
     if(mStripesFade > 0){
-        gl::color(1.,.9,0., mStripesFade*0.33);
+        
+        int numLayers = 4;
+        
+        gl::color(1.,.9,0., mStripesFade/(numLayers-2.f));
 
+        float noiseX;
+        float segmentWidth = getWindowWidth() / 6.f;
+        
+        for (int i = 0; i < numLayers; i++){
+        
         vector<PolyLine2f> stripe;
-        stripe.push_back( PolyLine2f() );
-        stripe.back().push_back( Vec2f( lerp(getWindowHeight(),0,mStripesSquareness), 0 ) );
-        stripe.back().push_back( Vec2f( getWindowWidth()/3., 0 ) );
-        stripe.back().push_back( Vec2f( (getWindowWidth()/3.)-lerp(getWindowHeight(),0,mStripesSquareness), getWindowHeight() ) );
-        stripe.back().push_back( Vec2f( 0, getWindowHeight()) );
 
-        for (int i=0; i<5; i++) {
-        gl::pushMatrices();
-            gl::translate(Vec2f((i-3.f)*2,0));
-        gl::translate(((Vec2f)mStripesPosition).x * getWindowWidth(), ((Vec2f)mStripesPosition).y * getWindowHeight());
-        gl::drawSolid(stripe.back());
+            for (int j = 0; j < 3; j++){
+                
+        stripe.push_back( PolyLine2f() );
+        noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.12*.25, 4*(i+1)*(j+1), 2));
+        stripe.back().push_back( Vec2f( lerp(getWindowHeight(),0,mStripesSquareness)+noiseX, 0 ) );
+        noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.19*.25, 4*(i+1)*(j+1), 1.5));
+        stripe.back().push_back( Vec2f( (getWindowWidth()/3.)+noiseX, 0 ) );
+        noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.13*.25, 4*(i+1)*(j+1), 37));
+        stripe.back().push_back( Vec2f( ((getWindowWidth()/3.)-lerp(getWindowHeight(),0,mStripesSquareness))+noiseX, getWindowHeight() ) );
+                noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.1*.25, 4*(i+1)*(j+1), 40));
+        stripe.back().push_back( Vec2f( noiseX, getWindowHeight()) );
+
+            }
+            
+            gl::pushMatrices();
+        gl::translate(((Vec2f)mStripesPosition).x * getWindowWidth()*(1.f+(i/numLayers)), ((Vec2f)mStripesPosition).y * getWindowHeight());
+        gl::drawSolid(stripe.at(0));
         gl::translate(getWindowWidth()/3., 0);
-        gl::drawSolid(stripe.back());
+        gl::drawSolid(stripe.at(1));
         gl::translate(getWindowWidth()/3., 0);
-        gl::drawSolid(stripe.back());
+        gl::drawSolid(stripe.at(2));
         gl::popMatrices();
         }
     }
     
     if(mHeaderFade > 0){
-        console() << mHeaderFade << endl;
         gl::color(0.,0.,0.,mHeaderFade);
         Vec2f stringDims = mTextureFontLight->measureString( mHeaderStrings.at(mHeaderStringPos) );
         gl::pushMatrices();
         float margin = 50;
-        float scale = (getWindowWidth()/3.f)/(stringDims.x+(margin*2.f))*.5f;
+        float scale = (getWindowWidth()/3.f)/(stringDims.x+(margin*2.f));
         gl::translate(margin,getWindowHeight()-(margin+fmaxf(0.,mTextureFontLight->getDescent())));
         gl::scale(scale, scale);
-        mTextureFontLight->drawString( mHeaderStrings.at(mHeaderStringPos) ,Vec2f(((Vec2f)mStripesPosition).x * getWindowWidth()/3.f, 0.f));
+        mTextureFontLight->drawString( mHeaderStrings.at(mHeaderStringPos) ,Vec2f(0.f, 0.f));
         gl::popMatrices();
+    }
+    
+    if(mTitleFade > 0){
+        gl::color(1.,1.,1.,mTitleFade);
+        Vec2f stringDims = mTextureFontBold->measureString( "INTER" );
+        mTextureFontBold->drawString( "INTER", Vec2f((getWindowWidth()/3.)-stringDims.x, getWindowHeight()*0.6) );
+        mTextureFontBold->drawString( "MEDIA", Vec2f((getWindowWidth()/3.), getWindowHeight()*0.6) );
+        
+        mTextureFontLight->drawString( "LAB", Vec2f((getWindowWidth()*2/3.), getWindowHeight()*0.6) );
+        
     }
 
     gl::color(.3,.3,.3);

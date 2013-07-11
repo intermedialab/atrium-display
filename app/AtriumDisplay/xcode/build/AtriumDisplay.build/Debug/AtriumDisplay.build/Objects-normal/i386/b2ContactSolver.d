@@ -1,5 +1,5 @@
 dependencies: \
-  /Users/ole/Development/atrium-display/app/AtriumDisplay/xcode/../blocks/Box2D/src/Box2D/Dynamics/Contacts/b2ContactSolver.cpp \
+  /Users/atriumdisplay/Development/atrium-display/app/AtriumDisplay/xcode/../blocks/Box2D/src/Box2D/Dynamics/Contacts/b2ContactSolver.cpp \
   ../blocks/Box2D/src/Box2D/Dynamics/Contacts/b2ContactSolver.h \
   ../blocks/Box2D/src/Box2D/Common/b2Math.h \
   ../blocks/Box2D/src/Box2D/Common/b2Settings.h \

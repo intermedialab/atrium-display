@@ -1,5 +1,5 @@
 dependencies: \
-  /Users/ole/Development/atrium-display/app/AtriumDisplay/xcode/../blocks/Box2D/src/Box2D/Dynamics/Joints/b2WeldJoint.cpp \
+  /Users/atriumdisplay/Development/atrium-display/app/AtriumDisplay/xcode/../blocks/Box2D/src/Box2D/Dynamics/Joints/b2WeldJoint.cpp \
   ../blocks/Box2D/src/Box2D/Dynamics/Joints/b2WeldJoint.h \
   ../blocks/Box2D/src/Box2D/Dynamics/Joints/b2Joint.h \
   ../blocks/Box2D/src/Box2D/Common/b2Math.h \
