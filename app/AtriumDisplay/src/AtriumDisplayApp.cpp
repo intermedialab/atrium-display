@@ -51,25 +51,31 @@ struct ResetFadingTextureFunctor {
 };
 
 FadingTexture::FadingTexture(){
-    mFade = 1.0;
+    mFade = 0.0;
     mCrossFade = 0.0;
     mColor = Color::white();
 }
 
 void FadingTexture::draw(){
     
+    Rectf drawBounds;
+    
 	if( mLastTexture ) {
 		gl::color( mColor.r, mColor.g, mColor.b, (1.0f - mCrossFade)*mFade );
 		Rectf textureBounds = mLastTexture.getBounds();
-		Rectf drawBounds = textureBounds.getCenteredFit( mBounds, true );
+		drawBounds = textureBounds.getCenteredFit( mBounds, true );
 		gl::draw( mLastTexture, drawBounds );
-	}
+    }
 	if( mTexture ) {
 		gl::color( mColor.r, mColor.g, mColor.b, mCrossFade*mFade );
 		Rectf textureBounds = mTexture.getBounds();
-		Rectf drawBounds = textureBounds.getCenteredFit( mBounds, true );
+		drawBounds = textureBounds.getCenteredFit( mBounds, true );
 		gl::draw( mTexture, drawBounds );
 	}
+    gl::enableAdditiveBlending();
+    gl::color( 1.0-mColor.r, 1.0-mColor.g, 1.0-mColor.b, mFade );
+    gl::drawSolidRect(drawBounds);
+    gl::enableAlphaBlending();
 
 }
 
@@ -193,12 +199,13 @@ void AtriumDisplayApp::setup()
     mMidTexture.mBounds.set(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, getWindowHeight());
     mRightTexture.mBounds.set(getWindowWidth()*2.f/3.f, 0, getWindowWidth(), getWindowHeight());
     
-    mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.9f, .5f);
+    mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.95f, .75f);
     
-    mHeaderStrings.push_back("Meeting");
+    mHeaderStrings.push_back("Projects");
     mHeaderStrings.push_back("A space for\nfull scale prototyping of\ncomputational environments.");
+    mHeaderStrings.push_back("Adaptivity");
     mHeaderStrings.push_back("Architecture");
-    mHeaderStrings.push_back("People");
+    mHeaderStrings.push_back("Research");
     mHeaderStringPos = 0;
 	mLastTime = getElapsedSeconds();
     mTransitionState = 0; // app just started;
@@ -218,7 +225,7 @@ void AtriumDisplayApp::loadImagesThreadFn()
 	vector<Url>	urls;
     
 	// parse the image URLS from the XML feed and push them into 'urls'
-	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen," + mHeaderStrings.at(mHeaderStringPos) + "&format=rss_200" );
+	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen,itu," + mHeaderStrings.at(mHeaderStringPos) + "&format=rss_200&tagmode=any" );
     console() << sunFlickrGroup.c_str() << endl;
 	const XmlTree xml( loadUrl( sunFlickrGroup ) );
 	for( XmlTree::ConstIter item = xml.begin( "rss/channel/item" ); item != xml.end(); ++item ) {
@@ -264,12 +271,14 @@ void AtriumDisplayApp::update()
                 timeline().apply( &mStripesSquareness, 0.0f, 0.f,EaseOutQuad() );
                 timeline().apply( &mStripesPosition, Vec2f(1,0), 0.f,EaseInQuad() );
                 timeline().apply( &mStripesNoise, .0f, .5f,EaseOutQuad() );
-                timeline().apply( &mStripesFade, 1.0f, .5f,EaseInOutQuad() );
+                timeline().apply( &mStripesFade, .9f, .5f,EaseInOutQuad() );
                 timeline().apply( &mHeaderFade, 0.f, .5f,EaseInQuad() );
                 timeline().appendTo( &mStripesPosition, Vec2f(0,0), 8.f,EaseOutSine() );
                 timeline().appendTo( &mStripesNoise, .5f, 5.f,EaseInOutSine() ).delay(7.5f);
                 timeline().apply( &mTitleFade, 1.0f, 4.f,EaseOutExpo() ).delay(6.f);
+                timeline().appendTo( &mStripesFade, .6f, 4.f, EaseInOutQuad() ).delay(5.5f);
                 timeline().appendTo( &mStripesNoise, 1.0f, 1.5f,EaseInQuad() ).finishFn(triggerTransition);
+                timeline().appendTo( &mStripesFade, 1.f, 2.f, EaseInOutQuad() ).delay(1.5f);
                 timeline().appendTo( &mTitleFade,  1.0f, 0.0f, 1.5f, EaseOutSine()).delay(3.f);
                 timeline().appendTo( &mStripesSquareness, 1.0f, 4.5f,EaseInOutQuad() ).delay(12.f);
                 mTransitionStateNext = 1;
@@ -381,7 +390,7 @@ void AtriumDisplayApp::draw()
                 noiseX = (perlin.noise(getElapsedSeconds()*.12*.25, 4*(i+1)*(j+1), 2));
                 noiseX = lerp(noiseX, noiseX-1.f, mStripesSquareness);
                 noiseX *= mStripesNoise*segmentWidth*(5+i);
-                stripe.back().push_back( Vec2f( lerp(getWindowHeight(),0,mStripesSquareness)+noiseX, 0 ) );
+                stripe.back().push_back( Vec2f( lerp(segmentWidth,0.f,mStripesSquareness)+noiseX, 0 ) );
                 
                 noiseX = (perlin.noise(getElapsedSeconds()*.19*.25, 4*(i+1)*(j+1), 1.5));
                 noiseX = lerp(noiseX, noiseX+1.f, mStripesSquareness);
@@ -391,7 +400,7 @@ void AtriumDisplayApp::draw()
                 noiseX = (perlin.noise(getElapsedSeconds()*.13*.25, 4*(i+1)*(j+1), 37));
                 noiseX = lerp(noiseX, noiseX+1.f, mStripesSquareness);
                 noiseX *= mStripesNoise*segmentWidth*(5+i);
-                stripe.back().push_back( Vec2f( ((getWindowWidth()/3.)-lerp(getWindowHeight(),0,mStripesSquareness))+noiseX, getWindowHeight() ) );
+                stripe.back().push_back( Vec2f( ((getWindowWidth()/3.)-lerp(segmentWidth,0.f,mStripesSquareness))+noiseX, getWindowHeight() ) );
                 
                 noiseX = (perlin.noise(getElapsedSeconds()*.15*.25, 4*(i+1)*(j+1), 3.33));
                 noiseX = lerp(noiseX, noiseX-1.f, mStripesSquareness);

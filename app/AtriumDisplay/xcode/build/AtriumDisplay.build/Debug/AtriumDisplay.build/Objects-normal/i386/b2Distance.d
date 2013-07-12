@@ -1,5 +1,5 @@
 dependencies: \
-  /Users/atriumdisplay/Development/atrium-display/app/AtriumDisplay/xcode/../blocks/Box2D/src/Box2D/Collision/b2Distance.cpp \
+  /Users/ole/Development/atrium-display/app/AtriumDisplay/xcode/../blocks/Box2D/src/Box2D/Collision/b2Distance.cpp \
   ../blocks/Box2D/src/Box2D/Collision/b2Distance.h \
   ../blocks/Box2D/src/Box2D/Common/b2Math.h \
   ../blocks/Box2D/src/Box2D/Common/b2Settings.h \

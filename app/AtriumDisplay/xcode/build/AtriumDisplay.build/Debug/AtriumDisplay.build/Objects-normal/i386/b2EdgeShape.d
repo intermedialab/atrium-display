@@ -1,5 +1,5 @@
 dependencies: \
-  /Users/atriumdisplay/Development/atrium-display/app/AtriumDisplay/xcode/../blocks/Box2D/src/Box2D/Collision/Shapes/b2EdgeShape.cpp \
+  /Users/ole/Development/atrium-display/app/AtriumDisplay/xcode/../blocks/Box2D/src/Box2D/Collision/Shapes/b2EdgeShape.cpp \
   ../blocks/Box2D/src/Box2D/Collision/Shapes/b2EdgeShape.h \
   ../blocks/Box2D/src/Box2D/Collision/Shapes/b2Shape.h \
   ../blocks/Box2D/src/Box2D/Common/b2BlockAllocator.h \
