@@ -269,18 +269,18 @@ void AtriumDisplayApp::update()
                 timeline().appendTo( &mStripesPosition, Vec2f(0,0), 8.f,EaseOutSine() );
                 timeline().appendTo( &mStripesNoise, .5f, 5.f,EaseInOutSine() ).delay(7.5f);
                 timeline().apply( &mTitleFade, 1.0f, 4.f,EaseOutExpo() ).delay(6.f);
-                timeline().appendTo( &mStripesNoise, .0f, 1.5f,EaseInQuad() ).finishFn(triggerTransition);
-                timeline().appendTo( &mTitleFade,  1.0f, 0.0f, 2.0f, EaseOutSine()).delay(3.f);
-                timeline().appendTo( &mStripesSquareness, 1.0f, 2.5f,EaseInQuad() ).delay(12.f);
+                timeline().appendTo( &mStripesNoise, 1.0f, 1.5f,EaseInQuad() ).finishFn(triggerTransition);
+                timeline().appendTo( &mTitleFade,  1.0f, 0.0f, 1.5f, EaseOutSine()).delay(3.f);
+                timeline().appendTo( &mStripesSquareness, 1.0f, 4.5f,EaseInOutQuad() ).delay(12.f);
                 mTransitionStateNext = 1;
                 break;
             case 1:
                 timeline().apply( &mHeaderFade, 1.f, .5f,EaseInQuad() );
                 timeline().apply( &mLogoFade, 1.f, .5f,EaseInCubic() );
                 timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
-                timeline().apply( &mStripesSquareness, 0.5f, 2.0f,EaseOutQuad() ).delay(4.f);
+                timeline().apply( &mStripesSquareness, 0.f, 5.0f,EaseOutQuad() ).delay(4.f);
                 timeline().apply( &mStripesPosition, Vec2f(-2,0), 5.f,EaseInQuad() ).delay(5.5f).finishFn( triggerTransition );
-                timeline().apply( &mStripesNoise, 1.f, 7.5f,EaseInSine() ).delay(3.5f);
+                timeline().apply( &mStripesNoise, .0f, 5.0f,EaseInOutSine() ).delay(3.5f);
                 timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(5.5f) ;
                 timeline().appendTo( &mLogoFade, 0.f, 1.f,EaseInQuad() ).delay(12.f) ;
                 mTransitionStateNext = 4;
@@ -378,16 +378,24 @@ void AtriumDisplayApp::draw()
         stripe.back().push_back( Vec2f( noiseX, lerp(getWindowHeight(),0,mStripesSquareness) ));
 */
                 
-                noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.12*.25, 4*(i+1)*(j+1), 2));
+                noiseX = (perlin.noise(getElapsedSeconds()*.12*.25, 4*(i+1)*(j+1), 2));
+                noiseX = lerp(noiseX, noiseX-1.f, mStripesSquareness);
+                noiseX *= mStripesNoise*segmentWidth*(5+i);
                 stripe.back().push_back( Vec2f( lerp(getWindowHeight(),0,mStripesSquareness)+noiseX, 0 ) );
                 
-                noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.19*.25, 4*(i+1)*(j+1), 1.5));
+                noiseX = (perlin.noise(getElapsedSeconds()*.19*.25, 4*(i+1)*(j+1), 1.5));
+                noiseX = lerp(noiseX, noiseX+1.f, mStripesSquareness);
+                noiseX *= mStripesNoise*segmentWidth*(5+i);
                 stripe.back().push_back( Vec2f( (getWindowWidth()/3.)+noiseX, 0 ) );
                 
-                noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.13*.25, 4*(i+1)*(j+1), 37));
+                noiseX = (perlin.noise(getElapsedSeconds()*.13*.25, 4*(i+1)*(j+1), 37));
+                noiseX = lerp(noiseX, noiseX+1.f, mStripesSquareness);
+                noiseX *= mStripesNoise*segmentWidth*(5+i);
                 stripe.back().push_back( Vec2f( ((getWindowWidth()/3.)-lerp(getWindowHeight(),0,mStripesSquareness))+noiseX, getWindowHeight() ) );
                 
-                noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.15*.25, 4*(i+1)*(j+1), 3.33));
+                noiseX = (perlin.noise(getElapsedSeconds()*.15*.25, 4*(i+1)*(j+1), 3.33));
+                noiseX = lerp(noiseX, noiseX-1.f, mStripesSquareness);
+                noiseX *= mStripesNoise*segmentWidth*(5+i);
                 stripe.back().push_back( Vec2f( noiseX, getWindowHeight()) );
 
                 
