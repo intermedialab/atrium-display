@@ -73,7 +73,7 @@ void FadingTexture::draw(){
 		gl::draw( mTexture, drawBounds );
 	}
     gl::enableAdditiveBlending();
-    gl::color( 1.0-mColor.r, 1.0-mColor.g, 1.0-mColor.b, mFade );
+    gl::color( 1.0-mColor.r, 1.0-mColor.g, 1.0-mColor.b, mFade*.9 );
     gl::drawSolidRect(drawBounds);
     gl::enableAlphaBlending();
 
@@ -274,7 +274,7 @@ void AtriumDisplayApp::update()
                 timeline().apply( &mStripesNoise, .0f, .5f,EaseOutQuad() );
                 timeline().apply( &mStripesFade, .9f, .5f,EaseInOutQuad() );
                 timeline().apply( &mHeaderFade, 0.f, .5f,EaseInQuad() );
-                timeline().appendTo( &mStripesPosition, Vec2f(0,0), 8.f,EaseOutSine() );
+                timeline().appendTo( &mStripesPosition, Vec2f(0,0), 8.f,EaseOutCubic() );
                 timeline().appendTo( &mStripesNoise, .5f, 5.f,EaseInOutSine() ).delay(7.5f);
                 timeline().apply( &mTitleFade, 1.0f, 4.f,EaseOutExpo() ).delay(6.f);
                 timeline().appendTo( &mStripesFade, .6f, 4.f, EaseInOutQuad() ).delay(5.5f);
@@ -411,6 +411,10 @@ void AtriumDisplayApp::draw()
                 
             }
             
+            gl::color(1., .9,.0, mStripesFade/(numLayers-1.f));
+            if(i==0){
+                gl::color(lerp(1.,0.,easeOutExpo(mStripesNoise)), lerp(.9,.4, easeOutExpo(mStripesNoise)),lerp(0.,.75,easeOutExpo(mStripesNoise)), mStripesFade);
+            }
             gl::pushMatrices();
         gl::translate(((Vec2f)mStripesPosition).x * getWindowWidth()*(1.f+(i/numLayers)), ((Vec2f)mStripesPosition).y * getWindowHeight());
         gl::drawSolid(stripe.at(0));
