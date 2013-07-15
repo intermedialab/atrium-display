@@ -10,17 +10,14 @@
 #include "cinder/ConcurrentCircularBuffer.h"
 #include "cinder/gl/TextureFont.h"
 #include "Resources.h"
-#include <boost/filesystem/fstream.hpp>
+#include <boost/filesystem.hpp>
 #include <string>
 #include <cstdio> // for std::remove
-
-namespace fs = boost::filesystem;
 
 #include <boost/config.hpp>
 #ifdef BOOST_NO_STDC_NAMESPACE
 namespace std { using ::remove; }
 #endif
-
 
 #include "yaml.h"
 
@@ -32,6 +29,24 @@ bool gTriggerTransition;
 
 void triggerTransition(){
     gTriggerTransition = true;
+}
+
+std::string expand_user(std::string path) {
+    if (not path.empty() and path[0] == '~') {
+        assert(path.size() == 1 or path[1] == '/');  // or other error handling
+        char const* home = getenv("HOME");
+        if (home or ((home = getenv("USERPROFILE")))) {
+            path.replace(0, 1, home);
+        }
+        else {
+            char const *hdrive = getenv("HOMEDRIVE"),
+            *hpath = getenv("HOMEPATH");
+            assert(hdrive);  // or other error handling
+            assert(hpath);
+            path.replace(0, 1, std::string(hdrive) + hpath);
+        }
+    }
+    return path;
 }
 
 class FadingTexture {
@@ -121,7 +136,10 @@ class AtriumDisplayApp : public AppNative {
 	void update();
 	void draw();
 	void shutdown();
-    
+
+    bool readConfig();
+    bool readProject(fs::path p);
+
     void loadImagesThreadFn();
 
     ConcurrentCircularBuffer<Surface>	*mSurfaces;
@@ -147,27 +165,21 @@ class AtriumDisplayApp : public AppNative {
 	double					mLastTime;
     Anim<float>             mLogoFade;
     Anim<float>             mHeaderFade;
-    int                     mHeaderStringPos;
-    vector<string>          mHeaderStrings;
+    int                     mTaglineStringPos;
+    vector<string>          mTaglineStrings;
+    
+    YAML::Node              configYaml;
+    
+    fs::path                configResourcePath;
+    fs::path                projectPath;
+    YAML::Node              projectData;
+    
     Perlin                  perlin;
 };
 
 void AtriumDisplayApp::prepareSettings( Settings *settings )
 {
-    
-    
-    YAML::Node config = YAML::LoadFile("config.yaml");
-    if(config["lastLogin"])
-        std::cout << "Last logged in: " << config["lastLogin"].as<float>() << "\n";
-    
-    const std::string username = config["username"].as<std::string>();
-    const std::string password = config["password"].as<std::string>();
-    config["lastLogin"] = getElapsedSeconds();
-
-    ofstream file( "config.yaml" );
-    file << config;
-    file.close();
-
+ 
     settings->setWindowSize(Display::getDisplays()[0]->getWidth(), round(Display::getDisplays()[0]->getWidth()*(9./(16*3))));
 	settings->setFullScreen( false );
 	settings->setResizable( false );
@@ -187,6 +199,8 @@ void AtriumDisplayApp::prepareSettings( Settings *settings )
 void AtriumDisplayApp::setup()
 {
     hideCursor();
+    
+    readConfig();
 
     // fonts
     gl::TextureFont::Format f;
@@ -227,14 +241,12 @@ void AtriumDisplayApp::setup()
     mRightTexture.mBounds.set(getWindowWidth()*2.f/3.f, 0, getWindowWidth(), getWindowHeight());
     
     mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.95f, .75f);
+
+    mTaglineStrings.push_back("Det her er en meget lang titel med æøå");
     
-    mHeaderStrings.push_back("Projects");
-    mHeaderStrings.push_back("A space for\nfull scale prototyping of\ncomputational environments.");
-    mHeaderStrings.push_back("Adaptivity");
-    mHeaderStrings.push_back("Architecture");
-    mHeaderStrings.push_back("Research");
-    mHeaderStringPos = 0;
-	mLastTime = getElapsedSeconds();
+    mTaglineStringPos = 0;
+	 
+    mLastTime = getElapsedSeconds();
     mTransitionState = 0; // app just started;
     mTransitionStateNext = 0; // app just started;
     mTitleFade = 0;
@@ -252,7 +264,7 @@ void AtriumDisplayApp::loadImagesThreadFn()
 	vector<Url>	urls;
     
 	// parse the image URLS from the XML feed and push them into 'urls'
-	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen,itu," + mHeaderStrings.at(mHeaderStringPos) + "&format=rss_200&tagmode=any" );
+	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen,itu&format=rss_200&tagmode=any" );
     console() << sunFlickrGroup.c_str() << endl;
 	const XmlTree xml( loadUrl( sunFlickrGroup ) );
 	for( XmlTree::ConstIter item = xml.begin( "rss/channel/item" ); item != xml.end(); ++item ) {
@@ -292,7 +304,7 @@ void AtriumDisplayApp::update()
                     mThread->join();
                 }
                 // create and launch the thread
-                mHeaderStringPos = (mHeaderStringPos+1)%mHeaderStrings.size();
+                mTaglineStringPos = (mTaglineStringPos+1)%mTaglineStrings.size();
                 mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
                 
                 timeline().apply( &mStripesSquareness, 0.0f, 0.f,EaseOutQuad() );
@@ -322,6 +334,15 @@ void AtriumDisplayApp::update()
                 mTransitionStateNext = 4;
                 break;
             case 2:
+                timeline().apply( &mHeaderFade, 1.f, .5f,EaseInQuad() );
+                timeline().apply( &mLogoFade, 1.f, .5f,EaseInCubic() );
+                timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
+                timeline().apply( &mStripesSquareness, 0.f, 5.0f,EaseOutQuad() ).delay(4.f);
+                timeline().apply( &mStripesPosition, Vec2f(-2,0), 5.f,EaseInQuad() ).delay(5.5f).finishFn( triggerTransition );
+                timeline().apply( &mStripesNoise, .0f, 5.0f,EaseInOutSine() ).delay(3.5f);
+                timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(5.5f) ;
+                timeline().appendTo( &mLogoFade, 0.f, 1.f,EaseInQuad() ).delay(12.f) ;
+                mTransitionStateNext = 4;
                 break;
             case 4:
                 if( mSurfaces->isNotEmpty() ) {
@@ -456,12 +477,12 @@ void AtriumDisplayApp::draw()
 
     if(mHeaderFade > 0){
         gl::color(0.,0.,0.,mHeaderFade);
-        Vec2f stringDims = mTextureFontLight->measureString( mHeaderStrings.at(mHeaderStringPos) );
+        Vec2f stringDims = mTextureFontLight->measureString( mTaglineStrings.at(mTaglineStringPos) );
         gl::pushMatrices();
         float scale = fminf(.5f,((getWindowWidth()/3.f)-(margin*2.f))/stringDims.x);
         gl::translate(margin,(getWindowHeight()+(scale*mTextureFontLight->getDescent()))-(margin+((stringDims.y-mTextureFontLight->getAscent())*scale)));
         gl::scale(scale, scale);
-        mTextureFontLight->drawString( mHeaderStrings.at(mHeaderStringPos) ,Vec2f(0.f, 0.f));
+        mTextureFontLight->drawString( mTaglineStrings.at(mTaglineStringPos) ,Vec2f(0.f, 0.f));
         gl::popMatrices();
         
     }
@@ -498,6 +519,97 @@ void AtriumDisplayApp::draw()
     gl::drawLine(Vec2f(getWindowWidth()/3., 0), Vec2f(getWindowWidth()/3.,getWindowHeight()));
     gl::drawLine(Vec2f(getWindowWidth()*2/3., 0), Vec2f(getWindowWidth()*2/3.,getWindowHeight()));
 
+}
+
+bool AtriumDisplayApp::readConfig(){
+
+    // load configuration file
+    
+    configYaml = YAML::LoadFile(getResourcePath(RES_CUSTOM_YAML_CONFIG).c_str());
+    if(configYaml["resourcePath"]){
+        configResourcePath = fs::path(expand_user(configYaml["resourcePath"].as<std::string>()));
+        
+        //TODO: load taglines from config file
+        
+        /**
+        
+        for(YAML::iterator it=configYaml["taglines"].begin();it!=configYaml["taglines"].end();++it) {
+            mTaglineStrings.push_back(it->as<std::string>);
+            mTaglineStringPos = 0;
+        }
+        
+        **/
+        
+        console() << "Config says to load from: " << configResourcePath << endl;
+        if(fs::exists(configResourcePath) && fs::is_directory(configResourcePath)){
+            console() << "Folder found: " << configResourcePath << endl;
+            
+            typedef vector<fs::path> vec;             // store paths,
+            vec v;                                // so we can sort them later
+            
+            copy(fs::directory_iterator(configResourcePath), fs::directory_iterator(), back_inserter(v));
+            
+            sort(v.begin(), v.end());             // sort, since directory iteration
+            // is not ordered on some file systems
+            
+            for (vec::const_iterator it (v.begin()); it != v.end(); ++it)
+            {
+                cout << "   " << *it << '\n';
+            }
+            
+            
+            
+            return true;
+            
+        } else {
+            console() << "Missing folder: " << configResourcePath << endl;
+        }
+    } else {
+        console() << "No config file at: " << configResourcePath << endl;
+    }
+    
+    return false;
+
+}
+
+
+bool AtriumDisplayApp::readProject(fs::path p){
+    
+    // load configuration file
+    
+/*    configYaml = YAML::LoadFile(getResourcePath(RES_CUSTOM_YAML_CONFIG).c_str());
+    if(configYaml["resourcePath"]){
+        configResourcePath = fs::path(expand_user(configYaml["resourcePath"].as<std::string>()));
+        console() << "Config says to load from: " << configResourcePath << endl;
+        if(fs::exists(configResourcePath) && fs::is_directory(configResourcePath)){
+            console() << "Folder found: " << configResourcePath << endl;
+            
+            typedef vector<fs::path> vec;             // store paths,
+            vec v;                                // so we can sort them later
+            
+            copy(fs::directory_iterator(configResourcePath), fs::directory_iterator(), back_inserter(v));
+            
+            sort(v.begin(), v.end());             // sort, since directory iteration
+            // is not ordered on some file systems
+            
+            for (vec::const_iterator it (v.begin()); it != v.end(); ++it)
+            {
+                
+                
+            }
+            
+            return true;
+            
+        } else {
+            console() << "Missing folder: " << configResourcePath << endl;
+        }
+    } else {
+        console() << "No config file at: " << configResourcePath << endl;
+    }
+    
+    return false;
+ */
+    
 }
 
 void AtriumDisplayApp::shutdown()
