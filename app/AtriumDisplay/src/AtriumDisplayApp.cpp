@@ -154,6 +154,7 @@ void AtriumDisplayApp::prepareSettings( Settings *settings )
 
 void AtriumDisplayApp::setup()
 {
+    hideCursor();
 
     // fonts
     gl::TextureFont::Format f;
@@ -195,10 +196,9 @@ void AtriumDisplayApp::setup()
     
     mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.9f, .5f);
     
-    mHeaderStrings.push_back("Meeting");
+    mHeaderStrings.push_back("Research");
     mHeaderStrings.push_back("A space for\nfull scale prototyping of\ncomputational environments.");
     mHeaderStrings.push_back("Architecture");
-    mHeaderStrings.push_back("People");
     mHeaderStringPos = 0;
 	mLastTime = getElapsedSeconds();
     mTransitionState = 0; // app just started;
@@ -243,7 +243,7 @@ void AtriumDisplayApp::loadImagesThreadFn()
 
 void AtriumDisplayApp::mouseDown( MouseEvent event )
 {
-    setFullScreen(true);
+
 }
 
 void AtriumDisplayApp::update()
