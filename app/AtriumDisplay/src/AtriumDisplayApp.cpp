@@ -10,6 +10,19 @@
 #include "cinder/ConcurrentCircularBuffer.h"
 #include "cinder/gl/TextureFont.h"
 #include "Resources.h"
+#include <boost/filesystem/fstream.hpp>
+#include <string>
+#include <cstdio> // for std::remove
+
+namespace fs = boost::filesystem;
+
+#include <boost/config.hpp>
+#ifdef BOOST_NO_STDC_NAMESPACE
+namespace std { using ::remove; }
+#endif
+
+
+#include "yaml.h"
 
 using namespace ci;
 using namespace ci::app;
@@ -142,6 +155,19 @@ class AtriumDisplayApp : public AppNative {
 void AtriumDisplayApp::prepareSettings( Settings *settings )
 {
     
+    
+    YAML::Node config = YAML::LoadFile("config.yaml");
+    if(config["lastLogin"])
+        std::cout << "Last logged in: " << config["lastLogin"].as<float>() << "\n";
+    
+    const std::string username = config["username"].as<std::string>();
+    const std::string password = config["password"].as<std::string>();
+    config["lastLogin"] = getElapsedSeconds();
+
+    ofstream file( "config.yaml" );
+    file << config;
+    file.close();
+
     settings->setWindowSize(Display::getDisplays()[0]->getWidth(), round(Display::getDisplays()[0]->getWidth()*(9./(16*3))));
 	settings->setFullScreen( false );
 	settings->setResizable( false );
