@@ -25,6 +25,8 @@ using namespace ci;
 using namespace ci::app;
 using namespace std;
 
+static const bool PREMULT = false;
+
 bool gTriggerTransition;
 
 void triggerTransition(){
@@ -50,7 +52,7 @@ std::string expand_user(std::string path) {
 }
 
 class FadingTexture {
-  public:
+public:
     FadingTexture();
     void draw();
     void fadeToSurface(Surface newSurface, float duration=1.5f);
@@ -104,7 +106,7 @@ void FadingTexture::draw(){
     gl::color( 1.0-mColor.r, 1.0-mColor.g, 1.0-mColor.b, mFade*.9 );
     gl::drawSolidRect(drawBounds);
     gl::enableAlphaBlending();
-
+    
 }
 
 void FadingTexture::fadeToSurface(float duration){
@@ -121,35 +123,36 @@ void FadingTexture::fadeToSurface(Surface newSurface, float duration){
         // blend from 0 to 1 over 1.5sec
         timeline().apply( &mCrossFade, 0.0f, 1.0f, duration );
         timeline().apply( &mFade, 1.0f, duration );
-
+        
     } else {
         timeline().apply( &mFade, 0.0f, duration );
     }
-
+    
 }
 
 class AtriumDisplayApp : public AppNative {
-  public:
+public:
 	void prepareSettings( Settings *settings );
 	void setup();
 	void mouseDown( MouseEvent event );
 	void update();
 	void draw();
 	void shutdown();
-
+    
     bool readConfig();
     bool readProject(fs::path p);
-
+    
     void loadImagesThreadFn();
-
+    
     ConcurrentCircularBuffer<Surface>	*mSurfaces;
-
-    gl::TextureFontRef	mTextureFontLight;
-    gl::TextureFontRef	mTextureFontRegular;
-    gl::TextureFontRef	mTextureFontBold;
-    gl::TextureFontRef	mTextureFontSemiBold;
-    gl::TextureFontRef	mTextureFontExtraBold;
-
+    
+    gl::Texture	mTitleTexture, mHeaderTexture, mProjectTexture, mLogoTexture;
+    
+    gl::TextureFontRef      mTitleFontPrimary;
+    gl::TextureFontRef      mTitleFontSecondary;
+    
+    Font                    mHeaderFont;
+    
 	bool					mShouldQuit;
 	shared_ptr<thread>		mThread;
 	FadingTexture			mFullTexture, mLeftTexture, mMidTexture, mRightTexture;
@@ -179,7 +182,7 @@ class AtriumDisplayApp : public AppNative {
 
 void AtriumDisplayApp::prepareSettings( Settings *settings )
 {
- 
+    
     settings->setWindowSize(Display::getDisplays()[0]->getWidth(), round(Display::getDisplays()[0]->getWidth()*(9./(16*3))));
 	settings->setFullScreen( false );
 	settings->setResizable( false );
@@ -191,7 +194,7 @@ void AtriumDisplayApp::prepareSettings( Settings *settings )
             settings->setDisplay(d);
             settings->setWindowSize(d->getSize());
             settings->setFullScreen( true );
-//            settings->setFrameRate(30.f);
+            //            settings->setFrameRate(30.f);
         }
     }
 }
@@ -201,37 +204,14 @@ void AtriumDisplayApp::setup()
     hideCursor();
     
     readConfig();
-
-    // fonts
-    gl::TextureFont::Format f;
-    f.enableMipmapping( true );
-    {
-        Font customFont( Font( loadResource( RES_CUSTOM_FONT_REGULAR ), getWindowHeight()*.4 ) );
-        mTextureFontRegular = gl::TextureFont::create( customFont, f );
-    }
-    {
-        Font customFont( Font( loadResource( RES_CUSTOM_FONT_BOLD ), getWindowHeight()*.4 ) );
-        mTextureFontBold = gl::TextureFont::create( customFont, f );
-    }
-    {
-        Font customFont( Font( loadResource( RES_CUSTOM_FONT_SEMIBOLD ), getWindowHeight()*.4 ) );
-        mTextureFontSemiBold = gl::TextureFont::create( customFont, f );
-    }
-    {
-        Font customFont( Font( loadResource( RES_CUSTOM_FONT_LIGHT ), getWindowHeight()*.4 ) );
-        mTextureFontLight = gl::TextureFont::create( customFont, f );
-    }
-    {
-        Font customFont( Font( loadResource( RES_CUSTOM_FONT_EXTRABOLD ), getWindowHeight()*.4 ) );
-        mTextureFontExtraBold = gl::TextureFont::create( customFont, f );
-    }
+    
     srandomdev();
     randSeed(random());
     perlin.setSeed(randInt());
     
 	mShouldQuit = false;
 	mSurfaces = new ConcurrentCircularBuffer<Surface>( 5 ); // room for 5 images
-
+    
     // create and launch the thread
     // mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
     
@@ -241,11 +221,36 @@ void AtriumDisplayApp::setup()
     mRightTexture.mBounds.set(getWindowWidth()*2.f/3.f, 0, getWindowWidth(), getWindowHeight());
     
     mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.95f, .75f);
-
-    mTaglineStrings.push_back("Det her er en meget lang titel med æøå");
+    
+    mTaglineStrings.push_back("this is a very long string that really shouldn't be a title at all, cus it is simply far to loooong. øæå");
     
     mTaglineStringPos = 0;
-	 
+	
+#pragma mark Fonts
+    
+    gl::TextureFont::Format f;
+    f.enableMipmapping( true );
+    
+    { // render itu logo
+        TextLayout layout;
+        layout.clear( ColorA( 0.1f, 0.1f, 0.1f, 1.f ) );
+        layout.setFont( Font( loadResource(RES_CUSTOM_FONT_LIGHT), getWindowHeight()*0.09895 ) );
+        layout.setColor( ColorA( 1., 1., 1., 1. ) );
+        layout.addLine("  IT UNIVERSITY OF COPENHAGEN  ");
+        Surface8u rendered = layout.render( true, PREMULT );
+        mLogoTexture = gl::Texture( rendered );
+    }
+    
+    {
+        Font titleFontPrimary = Font( loadResource(RES_CUSTOM_FONT_BOLD), getWindowHeight()*0.4 );
+        mTitleFontPrimary = gl::TextureFont::create( titleFontPrimary, f );
+        
+        Font titleFontSecondary = Font( loadResource(RES_CUSTOM_FONT_LIGHT), getWindowHeight()*0.4 );
+        mTitleFontSecondary = gl::TextureFont::create( titleFontSecondary, f );
+    }
+    
+    mHeaderFont = Font( loadResource(RES_CUSTOM_FONT_LIGHT), getWindowHeight()*0.1 );
+    
     mLastTime = getElapsedSeconds();
     mTransitionState = 0; // app just started;
     mTransitionStateNext = 0; // app just started;
@@ -255,7 +260,9 @@ void AtriumDisplayApp::setup()
     mStripesFade = 0;
     mStripesSquareness = 1;
     mStripesPosition = Vec2f(0,0);
+    
     triggerTransition();
+    
 }
 
 void AtriumDisplayApp::loadImagesThreadFn()
@@ -264,7 +271,7 @@ void AtriumDisplayApp::loadImagesThreadFn()
 	vector<Url>	urls;
     
 	// parse the image URLS from the XML feed and push them into 'urls'
-	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen,itu&format=rss_200&tagmode=any" );
+	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen&format=rss_200&tagmode=all" );
     console() << sunFlickrGroup.c_str() << endl;
 	const XmlTree xml( loadUrl( sunFlickrGroup ) );
 	for( XmlTree::ConstIter item = xml.begin( "rss/channel/item" ); item != xml.end(); ++item ) {
@@ -289,12 +296,12 @@ void AtriumDisplayApp::loadImagesThreadFn()
 
 void AtriumDisplayApp::mouseDown( MouseEvent event )
 {
-
+    
 }
 
 void AtriumDisplayApp::update()
 {
-
+    
     if(gTriggerTransition){
         mTransitionState = mTransitionStateNext;
         switch (mTransitionStateNext) {
@@ -356,19 +363,19 @@ void AtriumDisplayApp::update()
                     if(whichTexture == 1) fadingTexture = &mMidTexture;
                     if(whichTexture == 2) fadingTexture = &mRightTexture;
                     if(whichTexture == 3) fadingTexture = &mFullTexture;
-
+                    
                     croppedSurface = newSurface.clone(fadingTexture->mBounds.proportionalFit(fadingTexture->mBounds, newSurface.getBounds(), true));
-
+                    
                     if (mFadedTexture == &mFullTexture && fadingTexture != &mFullTexture) {
                         fadingTexture->fadeToSurface(0.f);
                         mFullTexture.fadeToSurface(2.f);
                     }
-
+                    
                     fadingTexture->fadeToSurface(croppedSurface);
                     timeline().add(triggerTransition, getElapsedSeconds()+randFloat(3.5f,5.f));
-
+                    
                     mFadedTexture = fadingTexture;
-
+                    
                 } else {
                     mStripesSquareness = 0;
                     mStripesNoise = 0;
@@ -385,7 +392,7 @@ void AtriumDisplayApp::update()
                         mMidTexture.fadeToSurface(1.5f);
                         mRightTexture.fadeToSurface(2.f);
                     }
-
+                    
                     timeline().add(triggerTransition, getElapsedSeconds()+2.5);
                 }
                 break;
@@ -409,31 +416,17 @@ void AtriumDisplayApp::draw()
         int numLayers = 3;
         
         gl::color(1.,.9,0., mStripesFade/(numLayers-1.f));
-
+        
         float noiseX;
         float segmentWidth = getWindowWidth() / 6.f;
         
         for (int i = 0; i < numLayers; i++){
-        
-        vector<PolyLine2f> stripe;
-
+            
+            vector<PolyLine2f> stripe;
+            
             for (int j = 0; j < 3; j++){
                 
-        stripe.push_back( PolyLine2f() );
-
-                /* Rotating version
-                 noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.12*.25, 4*(i+1)*(j+1), 2));
-        stripe.back().push_back( Vec2f( lerp(getWindowHeight()*1.f,(getWindowWidth()/3.f)+noiseX, mStripesSquareness)+noiseX, 0 ) );
-                
-        noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.19*.25, 4*(i+1)*(j+1), 1.5));
-        stripe.back().push_back( Vec2f( (getWindowWidth()/3.)+noiseX,lerp(0,getWindowHeight(),mStripesSquareness) ));
-        
-        noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.13*.25, 4*(i+1)*(j+1), 37));
-        stripe.back().push_back( Vec2f( ((getWindowWidth()/3.)-lerp(getWindowHeight()*1.f,getWindowWidth()/3.f, mStripesSquareness))+noiseX, getWindowHeight() ) );
-        
-        noiseX = mStripesNoise*segmentWidth*(5+i)*(perlin.noise(getElapsedSeconds()*.15*.25, 4*(i+1)*(j+1), 3.33));
-        stripe.back().push_back( Vec2f( noiseX, lerp(getWindowHeight(),0,mStripesSquareness) ));
-*/
+                stripe.push_back( PolyLine2f() );
                 
                 noiseX = (perlin.noise(getElapsedSeconds()*.12*.25, 4*(i+1)*(j+1), 2));
                 noiseX = lerp(noiseX, noiseX-1.f, mStripesSquareness);
@@ -454,7 +447,7 @@ void AtriumDisplayApp::draw()
                 noiseX = lerp(noiseX, noiseX-1.f, mStripesSquareness);
                 noiseX *= mStripesNoise*segmentWidth*(5+i);
                 stripe.back().push_back( Vec2f( noiseX, getWindowHeight()) );
-
+                
                 
             }
             
@@ -463,66 +456,68 @@ void AtriumDisplayApp::draw()
                 gl::color(lerp(1.,0.,easeOutExpo(mStripesNoise)), lerp(.9,.4, easeOutExpo(mStripesNoise)),lerp(0.,.75,easeOutExpo(mStripesNoise)), mStripesFade);
             }
             gl::pushMatrices();
-        gl::translate(((Vec2f)mStripesPosition).x * getWindowWidth()*(1.f+(i/numLayers)), ((Vec2f)mStripesPosition).y * getWindowHeight());
-        gl::drawSolid(stripe.at(0));
-        gl::translate(getWindowWidth()/3., 0);
-        gl::drawSolid(stripe.at(1));
-        gl::translate(getWindowWidth()/3., 0);
-        gl::drawSolid(stripe.at(2));
-        gl::popMatrices();
+            gl::translate(((Vec2f)mStripesPosition).x * getWindowWidth()*(1.f+(i/numLayers)), ((Vec2f)mStripesPosition).y * getWindowHeight());
+            gl::drawSolid(stripe.at(0));
+            gl::translate(getWindowWidth()/3., 0);
+            gl::drawSolid(stripe.at(1));
+            gl::translate(getWindowWidth()/3., 0);
+            gl::drawSolid(stripe.at(2));
+            gl::popMatrices();
         }
     }
-
+    
+    // TEXT
+    
     float margin = getWindowHeight()/8.f;
-
+    
+    // SECTION HEADERS
+    
     if(mHeaderFade > 0){
         gl::color(0.,0.,0.,mHeaderFade);
-        Vec2f stringDims = mTextureFontLight->measureString( mTaglineStrings.at(mTaglineStringPos) );
         gl::pushMatrices();
-        float scale = fminf(.5f,((getWindowWidth()/3.f)-(margin*2.f))/stringDims.x);
-        gl::translate(margin,(getWindowHeight()+(scale*mTextureFontLight->getDescent()))-(margin+((stringDims.y-mTextureFontLight->getAscent())*scale)));
-        gl::scale(scale, scale);
-        mTextureFontLight->drawString( mTaglineStrings.at(mTaglineStringPos) ,Vec2f(0.f, 0.f));
+        
+        TextBox headerBox;
+        headerBox.setSize(Vec2i((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin) ));
+        headerBox.setFont( mHeaderFont );
+        headerBox.setColor(ColorA(0.,0.,0.,1.));
+        headerBox.setText(mTaglineStrings.at(mTaglineStringPos));
+        
+        Surface8u rendered = headerBox.render();
+        gl::draw(  gl::Texture( rendered ), Vec2f(margin, margin));
+        
+        //        mHeaderFont->drawStringWrapped(mTaglineStrings.at(mTaglineStringPos), Rectf(margin,margin, (getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin)));
         gl::popMatrices();
         
-    }
-
-    if(mLogoFade > 0){
-        
-        gl::color(0.05,0.05,0.05,mLogoFade);
-        
-        Vec2f stringDims = mTextureFontLight->measureString( "IT UNIVERSITY OF COPENHAGEN" );
-        
-        float scale = ((getWindowWidth()/3.f)-(margin*2.5f))/stringDims.x;
-        
-        gl::drawSolidRect(Rectf((getWindowWidth()*2.f/3.f)+margin, getWindowHeight()-(margin+(stringDims.y*scale)), getWindowWidth()-margin, getWindowHeight()-margin));
-        
-        gl::color(1.,1.,1.,mLogoFade*mLogoFade);
-        gl::pushMatrices();
-        gl::translate((getWindowWidth()*2.f/3.f)+(1.25f*margin),getWindowHeight()-((1.25f*margin)));
-        gl::scale(scale, scale);
-        mTextureFontLight->drawString( "IT UNIVERSITY OF COPENHAGEN" ,Vec2f(0.f, 0.f));
-        gl::popMatrices();
-        
-
     }
     
-        gl::color(1.,1.,1.,mTitleFade);
-        Vec2f stringDims = mTextureFontBold->measureString( "INTER" );
-        mTextureFontBold->drawString( "INTER", Vec2f((getWindowWidth()/3.)-(stringDims.x+10), getWindowHeight()*0.65) );
-        mTextureFontBold->drawString( "MEDIA", Vec2f((getWindowWidth()/3.), getWindowHeight()*0.65) );
+    // ITU LOGO
+    
+    if(mLogoFade > 0){
         
-        mTextureFontLight->drawString( "LAB", Vec2f((getWindowWidth()*2/3.), getWindowHeight()*0.65) );
+        gl::color(1.,1.,1.,mLogoFade);
+        gl::draw( mLogoTexture, Vec2f( (getWindowWidth()*2.f/3.f)+margin, (getWindowHeight()-margin)-mLogoTexture.getHeight() ) );
         
-
+    }
+    
+    // INTERMEDIA LAB TITLE
+    
+    gl::color(1.,1.,1.,mTitleFade);
+    Vec2f stringDims = mTitleFontPrimary->measureString( "INTER" );
+    mTitleFontPrimary->drawString( "INTER", Vec2f((getWindowWidth()/3.)-(stringDims.x+10), getWindowHeight()*0.65) );
+    mTitleFontPrimary->drawString( "MEDIA", Vec2f((getWindowWidth()/3.), getWindowHeight()*0.65) );
+    mTitleFontSecondary->drawString( "LAB", Vec2f((getWindowWidth()*2/3.), getWindowHeight()*0.65) );
+    
+    
+    // SCREEN SEPERATOR BORDERS
+    
     gl::color(.3,.3,.3);
     gl::drawLine(Vec2f(getWindowWidth()/3., 0), Vec2f(getWindowWidth()/3.,getWindowHeight()));
     gl::drawLine(Vec2f(getWindowWidth()*2/3., 0), Vec2f(getWindowWidth()*2/3.,getWindowHeight()));
-
+    
 }
 
 bool AtriumDisplayApp::readConfig(){
-
+    
     // load configuration file
     
     configYaml = YAML::LoadFile(getResourcePath(RES_CUSTOM_YAML_CONFIG).c_str());
@@ -532,13 +527,13 @@ bool AtriumDisplayApp::readConfig(){
         //TODO: load taglines from config file
         
         /**
-        
-        for(YAML::iterator it=configYaml["taglines"].begin();it!=configYaml["taglines"].end();++it) {
-            mTaglineStrings.push_back(it->as<std::string>);
-            mTaglineStringPos = 0;
-        }
-        
-        **/
+         
+         for(YAML::iterator it=configYaml["taglines"].begin();it!=configYaml["taglines"].end();++it) {
+         mTaglineStrings.push_back(it->as<std::string>);
+         mTaglineStringPos = 0;
+         }
+         
+         **/
         
         console() << "Config says to load from: " << configResourcePath << endl;
         if(fs::exists(configResourcePath) && fs::is_directory(configResourcePath)){
@@ -569,7 +564,7 @@ bool AtriumDisplayApp::readConfig(){
     }
     
     return false;
-
+    
 }
 
 
@@ -577,38 +572,40 @@ bool AtriumDisplayApp::readProject(fs::path p){
     
     // load configuration file
     
-/*    configYaml = YAML::LoadFile(getResourcePath(RES_CUSTOM_YAML_CONFIG).c_str());
-    if(configYaml["resourcePath"]){
-        configResourcePath = fs::path(expand_user(configYaml["resourcePath"].as<std::string>()));
-        console() << "Config says to load from: " << configResourcePath << endl;
-        if(fs::exists(configResourcePath) && fs::is_directory(configResourcePath)){
-            console() << "Folder found: " << configResourcePath << endl;
-            
-            typedef vector<fs::path> vec;             // store paths,
-            vec v;                                // so we can sort them later
-            
-            copy(fs::directory_iterator(configResourcePath), fs::directory_iterator(), back_inserter(v));
-            
-            sort(v.begin(), v.end());             // sort, since directory iteration
-            // is not ordered on some file systems
-            
-            for (vec::const_iterator it (v.begin()); it != v.end(); ++it)
-            {
-                
-                
-            }
-            
-            return true;
-            
-        } else {
-            console() << "Missing folder: " << configResourcePath << endl;
-        }
-    } else {
-        console() << "No config file at: " << configResourcePath << endl;
-    }
+    /*    configYaml = YAML::LoadFile(getResourcePath(RES_CUSTOM_YAML_CONFIG).c_str());
+     if(configYaml["resourcePath"]){
+     configResourcePath = fs::path(expand_user(configYaml["resourcePath"].as<std::string>()));
+     console() << "Config says to load from: " << configResourcePath << endl;
+     if(fs::exists(configResourcePath) && fs::is_directory(configResourcePath)){
+     console() << "Folder found: " << configResourcePath << endl;
+     
+     typedef vector<fs::path> vec;             // store paths,
+     vec v;                                // so we can sort them later
+     
+     copy(fs::directory_iterator(configResourcePath), fs::directory_iterator(), back_inserter(v));
+     
+     sort(v.begin(), v.end());             // sort, since directory iteration
+     // is not ordered on some file systems
+     
+     for (vec::const_iterator it (v.begin()); it != v.end(); ++it)
+     {
+     
+     
+     }
+     
+     return true;
+     
+     } else {
+     console() << "Missing folder: " << configResourcePath << endl;
+     }
+     } else {
+     console() << "No config file at: " << configResourcePath << endl;
+     }
+     
+     return false;
+     */
     
     return false;
- */
     
 }
 
