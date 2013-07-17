@@ -524,16 +524,12 @@ bool AtriumDisplayApp::readConfig(){
     if(configYaml["resourcePath"]){
         configResourcePath = fs::path(expand_user(configYaml["resourcePath"].as<std::string>()));
         
-        //TODO: load taglines from config file
         
-        /**
-         
          for(YAML::iterator it=configYaml["taglines"].begin();it!=configYaml["taglines"].end();++it) {
-         mTaglineStrings.push_back(it->as<std::string>);
+         mTaglineStrings.push_back(it->as<std::string>());
          mTaglineStringPos = 0;
          }
          
-         **/
         
         console() << "Config says to load from: " << configResourcePath << endl;
         if(fs::exists(configResourcePath) && fs::is_directory(configResourcePath)){
