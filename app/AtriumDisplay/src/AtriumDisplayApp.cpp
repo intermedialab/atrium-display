@@ -10,7 +10,9 @@
 #include "cinder/ConcurrentCircularBuffer.h"
 #include "cinder/gl/TextureFont.h"
 #include "Resources.h"
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/date_time/gregorian/gregorian.hpp>
 #include <string>
 #include <cstdio> // for std::remove
 
@@ -24,6 +26,8 @@ namespace std { using ::remove; }
 using namespace ci;
 using namespace ci::app;
 using namespace std;
+
+#pragma mark Globals
 
 static const bool PREMULT = false;
 
@@ -50,6 +54,8 @@ std::string expand_user(std::string path) {
     }
     return path;
 }
+
+#pragma mark FadingTexture
 
 class FadingTexture {
 public:
@@ -130,6 +136,156 @@ void FadingTexture::fadeToSurface(Surface newSurface, float duration){
     
 }
 
+#pragma mark Project
+
+class Project {
+public:
+    
+    Project(fs::path p);
+    
+    void loadYAMLFile(fs::path pYAML);
+    void setupResources(fs::path p);
+    void reload();
+    
+    fs::path            mPath;
+    vector<fs::path>    mResources;
+    
+//    ConcurrentCircularBuffer<Surface> *mSurfaces;
+
+    boost::gregorian::date
+                        mDate;
+    std::string         mTitle;
+    std::string         mAbstract;
+    std::string         mSummary;
+    vector<std::string> mParticipants;
+    vector<std::string> mCredits;
+    vector<std::string> mMaterials;
+    vector<std::string> mTags;
+    std::string         mCreativeCommons;
+    Url                 mURL;
+    
+};
+
+Project::Project(fs::path p){
+
+ //   mSurfaces = new ConcurrentCircularBuffer<Surface>( 5 ); // room for 5 images
+
+    if(fs::exists(p) && fs::is_directory(p)){
+        mPath = p;
+        reload();
+    }
+}
+
+void Project::reload(){
+    if(fs::exists(mPath) && mPath != ""){
+        setupResources(mPath);
+        fs::path pYAML = fs::path(mPath.string() + "/project.yaml");
+        if(fs::exists(pYAML)){
+            loadYAMLFile(pYAML);
+        }
+    }
+}
+
+void Project::loadYAMLFile(fs::path pYAML){
+    
+    // load YAML file
+    YAML::Node projectYaml = YAML::LoadFile(pYAML.c_str());
+
+    if(projectYaml["date"]){
+        try {
+            mDate = boost::gregorian::from_undelimited_string(projectYaml["date"].as<std::string>());
+        } catch (...) {
+            mDate = boost::gregorian::date(boost::date_time::not_a_date_time);
+        }
+    }
+    
+    if(projectYaml["title"]){
+        mTitle = projectYaml["title"].as<std::string>();
+    }
+    
+    if(projectYaml["abstract"]){
+        mAbstract = projectYaml["abstract"].as<std::string>();
+    }
+    
+    if(projectYaml["summary"]){
+        mSummary = projectYaml["summary"].as<std::string>();
+    }
+    
+    if(projectYaml["participants"]){
+        YAML::Node n = projectYaml["participants"];
+        for(YAML::const_iterator it=n.begin();it!=n.end();++it)
+            mParticipants.push_back((*it)["name"].as<std::string>());
+    }
+
+    if(projectYaml["credits"]){
+        YAML::Node n = projectYaml["credits"];
+        for(YAML::const_iterator it=n.begin();it!=n.end();++it)
+            mCredits.push_back((*it)["name"].as<std::string>());
+    }
+
+    if(projectYaml["materials"]){
+        YAML::Node n = projectYaml["materials"];
+        for(YAML::const_iterator it=n.begin();it!=n.end();++it)
+            mMaterials.push_back(it->as<std::string>());
+    }
+
+    if(projectYaml["tags"]){
+        YAML::Node n = projectYaml["tags"];
+        for(YAML::const_iterator it=n.begin();it!=n.end();++it)
+            mTags.push_back(it->as<std::string>());
+    }
+    
+    if(projectYaml["url"]){
+        mURL = Url(projectYaml["url"].as<std::string>());
+    }
+    
+    //std::string         mCreativeCommons;
+
+    
+}
+
+void Project::setupResources(fs::path p){
+    
+    if(fs::exists(p) && fs::is_directory(p)){
+        
+        typedef vector<fs::path> paths;         // store paths,
+        paths resPaths;                         // so we can sort them later
+        
+        copy(fs::directory_iterator(p), fs::directory_iterator(), back_inserter(resPaths));
+        
+        sort(resPaths.begin(), resPaths.end()); // sort, since directory iteration
+        // is not ordered on some file systems
+        
+        for (paths::const_iterator resIt (resPaths.begin()); resIt != resPaths.end(); ++resIt)
+        {
+            
+            if(boost::iequals(resIt->extension().string(), ".pdf") ){
+                // pdf files
+            }
+            
+            if(boost::iequals(resIt->extension().string(), ".mov") ||
+               boost::iequals(resIt->extension().string(), ".mp4") ||
+               boost::iequals(resIt->extension().string(), ".m4v") ||
+               boost::iequals(resIt->extension().string(), ".avi") ){
+                // movie files
+                mResources.push_back(*resIt);
+            }
+            
+            if(boost::iequals(resIt->extension().string(), ".jpg") ||
+               boost::iequals(resIt->extension().string(), ".png") ||
+               boost::iequals(resIt->extension().string(), ".gif") ||
+               boost::iequals(resIt->extension().string(), ".jpeg") ){
+                //image files
+                mResources.push_back(*resIt);
+            }
+        }
+    }
+    
+}
+
+
+#pragma mark AtriumDisplayApp
+
 class AtriumDisplayApp : public AppNative {
 public:
 	void prepareSettings( Settings *settings );
@@ -137,14 +293,18 @@ public:
 	void mouseDown( MouseEvent event );
 	void update();
 	void draw();
+    void loadNextProject();
 	void shutdown();
     
     bool readConfig();
-    bool readProject(fs::path p);
     
     void loadImagesThreadFn();
     
     ConcurrentCircularBuffer<Surface>	*mSurfaces;
+    
+    deque<Project*>        mProjects;
+    
+    Project                 *mCurrentProject;
     
     gl::Texture	mTitleTexture, mHeaderTexture, mProjectTexture, mLogoTexture;
     
@@ -174,8 +334,6 @@ public:
     YAML::Node              configYaml;
     
     fs::path                configResourcePath;
-    fs::path                projectPath;
-    YAML::Node              projectData;
     
     Perlin                  perlin;
 };
@@ -203,14 +361,12 @@ void AtriumDisplayApp::setup()
 {
     hideCursor();
     
-    readConfig();
-    
     srandomdev();
     randSeed(random());
     perlin.setSeed(randInt());
     
 	mShouldQuit = false;
-	mSurfaces = new ConcurrentCircularBuffer<Surface>( 5 ); // room for 5 images
+	mSurfaces = new ConcurrentCircularBuffer<Surface>( 3 ); // room for 5 images
     
     // create and launch the thread
     // mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
@@ -222,11 +378,11 @@ void AtriumDisplayApp::setup()
     
     mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.95f, .75f);
     
-    mTaglineStrings.push_back("this is a very long string that really shouldn't be a title at all, cus it is simply far to loooong. øæå");
+    mTaglineStrings.push_back("full scale prototyping of computational spaces.");
     
     mTaglineStringPos = 0;
 	
-#pragma mark Fonts
+#pragma mark AtriumDisplayApp @Font loading
     
     gl::TextureFont::Format f;
     f.enableMipmapping( true );
@@ -261,6 +417,8 @@ void AtriumDisplayApp::setup()
     mStripesSquareness = 1;
     mStripesPosition = Vec2f(0,0);
     
+    readConfig();
+    
     triggerTransition();
     
 }
@@ -268,7 +426,26 @@ void AtriumDisplayApp::setup()
 void AtriumDisplayApp::loadImagesThreadFn()
 {
 	ci::ThreadSetup threadSetup; // instantiate this if you're talking to Cinder from a secondary thread
-	vector<Url>	urls;
+
+    while( ( ! mShouldQuit ) && (mCurrentProject) && ( ! mCurrentProject->mResources.empty() ) ) {
+        
+        if(mCurrentProject){
+            try {
+                console() << "Loading: " << mCurrentProject->mResources.back() << std::endl;
+                mSurfaces->pushFront( loadImage(mCurrentProject->mResources.back()) );
+                mCurrentProject->mResources.pop_back();
+            }
+            catch( ... ) {
+                // just ignore any exceptions
+            }
+        }
+        
+    }
+    
+    
+    
+
+    /*
     
 	// parse the image URLS from the XML feed and push them into 'urls'
 	const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen&format=rss_200&tagmode=all" );
@@ -291,7 +468,7 @@ void AtriumDisplayApp::loadImagesThreadFn()
 			// just ignore any exceptions
 		}
 	}
-    
+    */
 }
 
 void AtriumDisplayApp::mouseDown( MouseEvent event )
@@ -392,6 +569,8 @@ void AtriumDisplayApp::update()
                         mMidTexture.fadeToSurface(1.5f);
                         mRightTexture.fadeToSurface(2.f);
                     }
+                    
+                    loadNextProject();
                     
                     timeline().add(triggerTransition, getElapsedSeconds()+2.5);
                 }
@@ -518,37 +697,79 @@ void AtriumDisplayApp::draw()
 
 bool AtriumDisplayApp::readConfig(){
     
-    // load configuration file
+    // load configuration file and find ressource path
     
     configYaml = YAML::LoadFile(getResourcePath(RES_CUSTOM_YAML_CONFIG).c_str());
     if(configYaml["resourcePath"]){
         configResourcePath = fs::path(expand_user(configYaml["resourcePath"].as<std::string>()));
         
-        
-         for(YAML::iterator it=configYaml["taglines"].begin();it!=configYaml["taglines"].end();++it) {
-         mTaglineStrings.push_back(it->as<std::string>());
-         mTaglineStringPos = 0;
-         }
-         
-        
-        console() << "Config says to load from: " << configResourcePath << endl;
         if(fs::exists(configResourcePath) && fs::is_directory(configResourcePath)){
-            console() << "Folder found: " << configResourcePath << endl;
             
-            typedef vector<fs::path> vec;             // store paths,
-            vec v;                                // so we can sort them later
+            typedef vector<fs::path> paths;         // store paths,
+            paths resPaths;                         // so we can sort them later
             
-            copy(fs::directory_iterator(configResourcePath), fs::directory_iterator(), back_inserter(v));
+            copy(fs::directory_iterator(configResourcePath), fs::directory_iterator(), back_inserter(resPaths));
             
-            sort(v.begin(), v.end());             // sort, since directory iteration
+            sort(resPaths.begin(), resPaths.end()); // sort, since directory iteration
             // is not ordered on some file systems
             
-            for (vec::const_iterator it (v.begin()); it != v.end(); ++it)
+            for (paths::const_iterator resIt (resPaths.begin()); resIt != resPaths.end(); ++resIt)
             {
-                cout << "   " << *it << '\n';
+                
+                if ( fs::is_directory(*resIt) ){
+                    if (resIt->filename() == "projects" ){
+                        
+                        // projects are loaded in reverse cronological order
+                        
+                        paths prjPaths;
+                        copy(fs::directory_iterator(*resIt), fs::directory_iterator(), back_inserter(prjPaths));
+                        sort(prjPaths.begin(), prjPaths.end());
+                        reverse(prjPaths.begin(), prjPaths.end());
+                        
+                        mProjects.clear();
+                        mCurrentProject = NULL;
+                        
+                        for (paths::const_iterator prjIt (prjPaths.begin()); prjIt != prjPaths.end(); ++prjIt)
+                        {
+                            if (fs::is_directory(*prjIt)) {
+                                
+                                if(! boost::starts_with(prjIt->filename().string(), "_")) {
+                                    
+                                    Project *p = new Project(*prjIt);
+                                    
+                                    mProjects.push_back(p);
+                                    
+                                }
+                                
+                            }
+                        }
+                        
+                    }
+                    
+                } else {
+                    if (resIt->filename() == "lab.yaml"){
+                        
+                        // user-defined configuration
+                        
+                        YAML::Node labYaml = YAML::LoadFile(resIt->c_str());
+                        
+                        if (labYaml["taglines"]) {
+                            
+                            // taglines
+                            
+                            mTaglineStrings.clear();
+                            mTaglineStringPos = 0;
+                            
+                            for(YAML::iterator tagIt=labYaml["taglines"].begin();tagIt!=labYaml["taglines"].end();++tagIt) {
+                                mTaglineStrings.push_back(tagIt->as<std::string>());
+                            }
+                        }
+                        
+                    }
+                    
+                }
+                
             }
-            
-            
             
             return true;
             
@@ -563,53 +784,25 @@ bool AtriumDisplayApp::readConfig(){
     
 }
 
+void AtriumDisplayApp::loadNextProject(){
 
-bool AtriumDisplayApp::readProject(fs::path p){
+    console() << "loadNextProject" << endl;
     
-    // load configuration file
-    
-    /*    configYaml = YAML::LoadFile(getResourcePath(RES_CUSTOM_YAML_CONFIG).c_str());
-     if(configYaml["resourcePath"]){
-     configResourcePath = fs::path(expand_user(configYaml["resourcePath"].as<std::string>()));
-     console() << "Config says to load from: " << configResourcePath << endl;
-     if(fs::exists(configResourcePath) && fs::is_directory(configResourcePath)){
-     console() << "Folder found: " << configResourcePath << endl;
-     
-     typedef vector<fs::path> vec;             // store paths,
-     vec v;                                // so we can sort them later
-     
-     copy(fs::directory_iterator(configResourcePath), fs::directory_iterator(), back_inserter(v));
-     
-     sort(v.begin(), v.end());             // sort, since directory iteration
-     // is not ordered on some file systems
-     
-     for (vec::const_iterator it (v.begin()); it != v.end(); ++it)
-     {
-     
-     
-     }
-     
-     return true;
-     
-     } else {
-     console() << "Missing folder: " << configResourcePath << endl;
-     }
-     } else {
-     console() << "No config file at: " << configResourcePath << endl;
-     }
-     
-     return false;
-     */
-    
-    return false;
-    
+    if(mCurrentProject){
+        console() << "Former project was: " + mCurrentProject->mTitle << endl;
+        mProjects.push_back(mCurrentProject);
+        mProjects.pop_front();
+    }
+    mCurrentProject = mProjects.front();
+    console() << "Next project is: " + mCurrentProject->mTitle << endl;
+    mCurrentProject->reload();
 }
 
 void AtriumDisplayApp::shutdown()
 {
-	mShouldQuit = true;
-	mSurfaces->cancel();
-	mThread->join();
+    mShouldQuit = true;
+    mSurfaces->cancel();
+    mThread->join();
 }
 
 CINDER_APP_NATIVE( AtriumDisplayApp, RendererGl(RendererGl::AA_NONE) )
