@@ -178,6 +178,7 @@ Project::Project(fs::path p){
 
 void Project::reload(){
     if(fs::exists(mPath) && mPath != ""){
+        mResources.clear();
         setupResources(mPath);
         fs::path pYAML = fs::path(mPath.string() + "/project.yaml");
         if(fs::exists(pYAML)){
@@ -312,6 +313,7 @@ public:
     gl::TextureFontRef      mTitleFontSecondary;
     
     Font                    mHeaderFont;
+    Font                    mParagraphFont;
     
 	bool					mShouldQuit;
 	shared_ptr<thread>		mThread;
@@ -328,6 +330,7 @@ public:
 	double					mLastTime;
     Anim<float>             mLogoFade;
     Anim<float>             mHeaderFade;
+    Anim<float>             mProjectTextFade;
     int                     mTaglineStringPos;
     vector<string>          mTaglineStrings;
     
@@ -406,13 +409,14 @@ void AtriumDisplayApp::setup()
     }
     
     mHeaderFont = Font( loadResource(RES_CUSTOM_FONT_LIGHT), getWindowHeight()*0.1 );
-    
+    mParagraphFont = Font( loadResource(RES_CUSTOM_FONT_REGULAR), getWindowHeight()*0.05 );
     mLastTime = getElapsedSeconds();
     mTransitionState = 0; // app just started;
     mTransitionStateNext = 0; // app just started;
     mTitleFade = 0;
     mHeaderFade = 0;
     mLogoFade = 0;
+    mProjectTextFade = 0;
     mStripesFade = 0;
     mStripesSquareness = 1;
     mStripesPosition = Vec2f(0,0);
@@ -489,6 +493,7 @@ void AtriumDisplayApp::update()
                 }
                 // create and launch the thread
                 mTaglineStringPos = (mTaglineStringPos+1)%mTaglineStrings.size();
+                loadNextProject();
                 mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
                 
                 timeline().apply( &mStripesSquareness, 0.0f, 0.f,EaseOutQuad() );
@@ -496,6 +501,7 @@ void AtriumDisplayApp::update()
                 timeline().apply( &mStripesNoise, .0f, .5f,EaseOutQuad() );
                 timeline().apply( &mStripesFade, .9f, .5f,EaseInOutQuad() );
                 timeline().apply( &mHeaderFade, 0.f, .5f,EaseInQuad() );
+                timeline().apply( &mProjectTextFade, 0.f, 1.0f,EaseInQuad() );
                 timeline().appendTo( &mStripesPosition, Vec2f(0,0), 8.f,EaseOutCubic() );
                 timeline().appendTo( &mStripesNoise, .5f, 5.f,EaseInOutSine() ).delay(7.5f);
                 timeline().apply( &mTitleFade, 1.0f, 4.f,EaseOutExpo() ).delay(6.f);
@@ -507,17 +513,6 @@ void AtriumDisplayApp::update()
                 mTransitionStateNext = 1;
                 break;
             case 1:
-                timeline().apply( &mHeaderFade, 1.f, .5f,EaseInQuad() );
-                timeline().apply( &mLogoFade, 1.f, .5f,EaseInCubic() );
-                timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
-                timeline().apply( &mStripesSquareness, 0.f, 5.0f,EaseOutQuad() ).delay(4.f);
-                timeline().apply( &mStripesPosition, Vec2f(-2,0), 5.f,EaseInQuad() ).delay(5.5f).finishFn( triggerTransition );
-                timeline().apply( &mStripesNoise, .0f, 5.0f,EaseInOutSine() ).delay(3.5f);
-                timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(5.5f) ;
-                timeline().appendTo( &mLogoFade, 0.f, 1.f,EaseInQuad() ).delay(12.f) ;
-                mTransitionStateNext = 4;
-                break;
-            case 2:
                 timeline().apply( &mHeaderFade, 1.f, .5f,EaseInQuad() );
                 timeline().apply( &mLogoFade, 1.f, .5f,EaseInCubic() );
                 timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
@@ -553,6 +548,8 @@ void AtriumDisplayApp::update()
                     
                     mFadedTexture = fadingTexture;
                     
+                    timeline().apply( &mProjectTextFade, 1.f, 5.0f,EaseInOutSine() );
+                    
                 } else {
                     mStripesSquareness = 0;
                     mStripesNoise = 0;
@@ -569,9 +566,7 @@ void AtriumDisplayApp::update()
                         mMidTexture.fadeToSurface(1.5f);
                         mRightTexture.fadeToSurface(2.f);
                     }
-                    
-                    loadNextProject();
-                    
+                    timeline().apply( &mProjectTextFade, 0.f, 1.0f,EaseInQuad() );
                     timeline().add(triggerTransition, getElapsedSeconds()+2.5);
                 }
                 break;
@@ -648,6 +643,33 @@ void AtriumDisplayApp::draw()
     // TEXT
     
     float margin = getWindowHeight()/8.f;
+
+    // PROJECT TEXT
+    
+    if(mProjectTextFade > 0){
+        gl::color(1.,1.,1.,mProjectTextFade);
+        gl::pushMatrices();
+        
+        TextLayout layout;
+        layout.clear(ColorA(0.,0.,0.,0.1));
+        layout.setFont( mHeaderFont );
+        layout.setColor(ColorA(1.,1.,1.,1.));
+        layout.addLine(" " +mCurrentProject->mTitle + " ");
+        Surface8u rendered = layout.render();
+        gl::draw(  gl::Texture( rendered ), Vec2f(margin, margin));
+
+        TextBox box;
+        box.setSize(Vec2i((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(4*margin) ));
+        layout.setColor(ColorA(1.,1.,1.,1.));
+        box.setFont(mParagraphFont);
+        layout.addLine(mCurrentProject->mSummary);
+        Surface8u renderedBox = box.render();
+        gl::draw(  gl::Texture( renderedBox ), Vec2f(margin, (4*margin) ));
+
+        
+        gl::popMatrices();
+        
+    }
     
     // SECTION HEADERS
     
