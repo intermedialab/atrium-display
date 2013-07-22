@@ -563,15 +563,17 @@ void AtriumDisplayApp::update()
                         
                         loadMovieFile(mCurrentProject->mMovies.back());
                         mCurrentProject->mMovies.pop_back();
-                        timeline().apply( &mMovieFade, 1.f, 2.5f,EaseInSine() ).delay(.5f);
-                        timeline().add(triggerTransition, getElapsedSeconds()+mMovie->getDuration() );
+                        timeline().apply( &mMovieFade, 1.f, 2.f,EaseInSine() ).delay(.5f);
+                        timeline().add(triggerTransition, getElapsedSeconds()+mMovie->getDuration()-1.5f );
                     } else {
-                        timeline().apply( &mMovieFade, .0f, 1.5f,EaseInSine() ).finishFn(triggerTransition);
+                        timeline().apply( &mMovieFade, .0f, 1.5f,EaseInSine() );
+                        timeline().add(triggerTransition, getElapsedSeconds()+randFloat(3.5f,5.f));
                         mTransitionStateNext = 4;
                     }
                 } else {
+                    timeline().apply( &mMovieFade, .0f, 1.5f,EaseInSine() );
+                    timeline().add(triggerTransition, getElapsedSeconds()+randFloat(3.5f,5.f));
                     mTransitionStateNext = 4;
-                    triggerTransition();
                 }
                 break;
                 
@@ -617,8 +619,11 @@ void AtriumDisplayApp::update()
                     }
                     
                     fadingTexture->fadeToSurface(croppedSurface);
-                    timeline().add(triggerTransition, getElapsedSeconds()+randFloat(3.5f,5.f));
-                    
+                    if(mFadedTextureFadeCount < 2){
+                        timeline().add(triggerTransition, getElapsedSeconds()+5.f);
+                    } else {
+                        timeline().add(triggerTransition, getElapsedSeconds()+randFloat(3.5f,5.f));
+                    }
                     mFadedTexture = fadingTexture;
                     
                     if(mFadedTextureFadeCount == 0){
@@ -715,7 +720,7 @@ void AtriumDisplayApp::draw()
             
             tagOffset.x += tagMeasure.x+(margin*.375f);
             if(tagOffset.x > (getWindowWidth()/3.)-(3*margin)){
-                tagOffset.y+=mTagFont.getAscent()+mTagFont.getDescent()+(margin*.125);
+                tagOffset.y+=mTagFont.getAscent()+mTagFont.getDescent()+(margin*.2);
                 tagOffset.x = 0;
             }
         }
@@ -856,13 +861,75 @@ void AtriumDisplayApp::draw()
     if(mMovieFade > 0){
         
         if( mMovieFrameTexture ) {
+
+            //TODO: To busy vedge, has to be this instead:
+            
+            //   +---------------------+
+            //   |                     |
+            //   |                     |
+            //   |                1:23 |
+            //   | |/////////        | |
+            //   |                     |
+            //   +---------------------+
+            
+            
             gl::color( 0, 0, 0, mMovieFade );
             gl::drawSolidRect(Rectf(getWindowWidth()/3.f, 0, getWindowWidth(), getWindowHeight()));
+
+            float segmentWidth = mLogoTexture.getHeight();
+
+            float timeOffset = ((segmentWidth*16./9.)+(getWindowWidth()/3.f)-(margin*2)) * (mMovie->getCurrentTime()/mMovie->getDuration());
+            
+            Rectf croppedRect = Rectf(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, (getWindowWidth()/3.f)/mMovieFrameTexture.getAspectRatio());
+            
+            Rectf offsetRect = Rectf(croppedRect);
+            offsetRect.offset(Vec2f( getWindowWidth()/3.f ,0 ) );
+            
+            gl::pushMatrices();
+
+            gl::setViewport(mRightTexture.mBounds);
+            
+            gl::scale(3.,1.);
+            gl::translate(-getWindowWidth()*2.f/3.f, 0);
+            
+            gl::color(0., .2, 1., easeInQuint(mMovieFade));
+            gl::draw( mMovieFrameTexture, offsetRect);
+            
+            gl::enableAdditiveBlending();
+            gl::color(1., .8, 0., easeInQuint(mMovieFade));
+            gl::drawSolidRect(offsetRect);
+            
+            gl::enableAlphaBlending();
+
+            vector<PolyLine2f> vedges;
+            
+            vedges.push_back( PolyLine2f() );
+            vedges.back().push_back( Vec2f( 0 , 0 ) );
+            vedges.back().push_back( Vec2f( segmentWidth + timeOffset, 0 ) );
+            vedges.back().push_back( Vec2f( timeOffset, getWindowHeight()) );
+            vedges.back().push_back( Vec2f( 0, getWindowHeight()) );
+            
+            vedges.push_back( PolyLine2f() );
+            vedges.back().push_back( Vec2f( ((getWindowWidth()/3.))+timeOffset , 0 ) );
+            vedges.back().push_back( Vec2f( ((getWindowWidth()*2.f/3.))+timeOffset , 0 ) );
+            vedges.back().push_back( Vec2f( ((getWindowWidth()*2.f/3.))+timeOffset , getWindowHeight() ) );
+            vedges.back().push_back( Vec2f( ((getWindowWidth()/3.) - segmentWidth)+timeOffset , getWindowHeight() ) );
+            
+            gl::color(0.,0.,0., mMovieFade);
+
+            gl::translate(Vec2f(getWindowWidth()/3.f, 0));
+            
+            gl::drawSolid(vedges.at(0));
+            gl::drawSolid(vedges.at(1));
+
+            gl::popMatrices();
+            
+            gl::setViewport(getWindowBounds());
             
             Color tintColor = Color( 1.f, .95f, .75f);
             
             gl::color( tintColor.r, tintColor.g, tintColor.b, mMovieFade );
-            Rectf croppedRect = Rectf(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, (getWindowWidth()/3.f)/mMovieFrameTexture.getAspectRatio());
+
             gl::draw( mMovieFrameTexture, croppedRect);
 
             gl::enableAdditiveBlending();
@@ -870,11 +937,6 @@ void AtriumDisplayApp::draw()
             gl::drawSolidRect(croppedRect);
             gl::enableAlphaBlending();
             
-            Rectf timerRect = Rectf(getWindowWidth()*2.f/3.f, 0 , (getWindowWidth()*2.f/3.f) + ((getWindowWidth()/3.f) * mMovie->getCurrentTime()/mMovie->getDuration()), getWindowHeight());
-            
-            gl::color(1., .9,.0, mMovieFade);
-            gl::drawSolidRect(timerRect);
-      
             gl::color(0.,0.,0.,mHeaderFade);
             gl::pushMatrices();
             
