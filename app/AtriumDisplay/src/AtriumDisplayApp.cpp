@@ -9,8 +9,10 @@
 #include "cinder/Perlin.h"
 #include "cinder/ConcurrentCircularBuffer.h"
 #include "cinder/gl/TextureFont.h"
+#include "cinder/qtime/QuickTime.h"
 #include "Resources.h"
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/format.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <string>
@@ -141,16 +143,17 @@ void FadingTexture::fadeToSurface(Surface newSurface, float duration){
 class Project {
 public:
     
-    Project(fs::path p);
-    
-    void loadYAMLFile(fs::path pYAML);
-    void setupResources(fs::path p);
+    Project(const fs::path &p);
+    void loadYAMLFile(const fs::path &pYAML);
+    void setupResources(const fs::path &p);
     void reload();
     
     fs::path            mPath;
     vector<fs::path>    mResources;
+    vector<fs::path>    mImages;
+    vector<fs::path>    mMovies;
     
-//    ConcurrentCircularBuffer<Surface> *mSurfaces;
+    //    ConcurrentCircularBuffer<Surface> *mSurfaces;
 
     boost::gregorian::date
                         mDate;
@@ -166,7 +169,7 @@ public:
     
 };
 
-Project::Project(fs::path p){
+Project::Project(const fs::path &p){
 
  //   mSurfaces = new ConcurrentCircularBuffer<Surface>( 5 ); // room for 5 images
 
@@ -179,6 +182,8 @@ Project::Project(fs::path p){
 void Project::reload(){
     if(fs::exists(mPath) && mPath != ""){
         mResources.clear();
+        mImages.clear();
+        mMovies.clear();
         setupResources(mPath);
         fs::path pYAML = fs::path(mPath.string() + "/project.yaml");
         if(fs::exists(pYAML)){
@@ -187,7 +192,7 @@ void Project::reload(){
     }
 }
 
-void Project::loadYAMLFile(fs::path pYAML){
+void Project::loadYAMLFile(const fs::path &pYAML){
     
     // load YAML file
     YAML::Node projectYaml = YAML::LoadFile(pYAML.c_str());
@@ -213,24 +218,28 @@ void Project::loadYAMLFile(fs::path pYAML){
     }
     
     if(projectYaml["participants"]){
+        mParticipants.clear();
         YAML::Node n = projectYaml["participants"];
         for(YAML::const_iterator it=n.begin();it!=n.end();++it)
             mParticipants.push_back((*it)["name"].as<std::string>());
     }
 
     if(projectYaml["credits"]){
+        mCredits.clear();
         YAML::Node n = projectYaml["credits"];
         for(YAML::const_iterator it=n.begin();it!=n.end();++it)
             mCredits.push_back((*it)["name"].as<std::string>());
     }
 
     if(projectYaml["materials"]){
+        mMaterials.clear();
         YAML::Node n = projectYaml["materials"];
         for(YAML::const_iterator it=n.begin();it!=n.end();++it)
             mMaterials.push_back(it->as<std::string>());
     }
 
     if(projectYaml["tags"]){
+        mTags.clear();
         YAML::Node n = projectYaml["tags"];
         for(YAML::const_iterator it=n.begin();it!=n.end();++it)
             mTags.push_back(it->as<std::string>());
@@ -245,7 +254,7 @@ void Project::loadYAMLFile(fs::path pYAML){
     
 }
 
-void Project::setupResources(fs::path p){
+void Project::setupResources(const fs::path &p){
     
     if(fs::exists(p) && fs::is_directory(p)){
         
@@ -270,6 +279,7 @@ void Project::setupResources(fs::path p){
                boost::iequals(resIt->extension().string(), ".avi") ){
                 // movie files
                 mResources.push_back(*resIt);
+                mMovies.push_back(*resIt);
             }
             
             if(boost::iequals(resIt->extension().string(), ".jpg") ||
@@ -278,6 +288,7 @@ void Project::setupResources(fs::path p){
                boost::iequals(resIt->extension().string(), ".jpeg") ){
                 //image files
                 mResources.push_back(*resIt);
+                mImages.push_back(*resIt);
             }
         }
     }
@@ -305,6 +316,12 @@ public:
     
     deque<Project*>        mProjects;
     
+	void loadMovieFile( const fs::path &path );
+    
+    qtime::MovieGlRef       mMovie;
+    gl::Texture				mMovieFrameTexture, mMovieInfoTexture;
+
+	
     Project                 *mCurrentProject;
     
     gl::Texture	mTitleTexture, mHeaderTexture, mProjectTexture, mLogoTexture;
@@ -314,11 +331,14 @@ public:
     
     Font                    mHeaderFont;
     Font                    mParagraphFont;
+    Font                    mSmallFont;
+    Font                    mTagFont;
     
 	bool					mShouldQuit;
 	shared_ptr<thread>		mThread;
 	FadingTexture			mFullTexture, mLeftTexture, mMidTexture, mRightTexture;
     FadingTexture *         mFadedTexture;
+    int                     mFadedTextureFadeCount;
 	Anim<float>				mFade;
     Anim<float>             mTitleFade;
     Anim<float>             mStripesNoise;
@@ -330,7 +350,9 @@ public:
 	double					mLastTime;
     Anim<float>             mLogoFade;
     Anim<float>             mHeaderFade;
-    Anim<float>             mProjectTextFade;
+    Anim<float>             mProjectTitleFade;
+    Anim<float>             mProjectDetailsFade;
+    Anim<float>             mMovieFade;
     int                     mTaglineStringPos;
     vector<string>          mTaglineStrings;
     
@@ -403,20 +425,25 @@ void AtriumDisplayApp::setup()
     {
         Font titleFontPrimary = Font( loadResource(RES_CUSTOM_FONT_BOLD), getWindowHeight()*0.4 );
         mTitleFontPrimary = gl::TextureFont::create( titleFontPrimary, f );
-        
         Font titleFontSecondary = Font( loadResource(RES_CUSTOM_FONT_LIGHT), getWindowHeight()*0.4 );
         mTitleFontSecondary = gl::TextureFont::create( titleFontSecondary, f );
     }
     
     mHeaderFont = Font( loadResource(RES_CUSTOM_FONT_LIGHT), getWindowHeight()*0.1 );
-    mParagraphFont = Font( loadResource(RES_CUSTOM_FONT_REGULAR), getWindowHeight()*0.05 );
+    mParagraphFont = Font( loadResource(RES_CUSTOM_FONT_REGULAR), getWindowHeight()*0.045 );
+    mSmallFont = Font( loadResource(RES_CUSTOM_FONT_BOLD), getWindowHeight()*0.025 );
+    // mTagFont = Font( loadResource(RES_CUSTOM_FONT_REGULAR), getWindowHeight()*0.03 );
+    mTagFont = Font( loadResource(RES_CUSTOM_FONT_REGULAR), getWindowHeight()*0.025 );
     mLastTime = getElapsedSeconds();
     mTransitionState = 0; // app just started;
     mTransitionStateNext = 0; // app just started;
+    mFadedTextureFadeCount = 0;
     mTitleFade = 0;
     mHeaderFade = 0;
     mLogoFade = 0;
-    mProjectTextFade = 0;
+    mProjectTitleFade = 0;
+    mProjectDetailsFade = 0;
+    mMovieFade = 0;
     mStripesFade = 0;
     mStripesSquareness = 1;
     mStripesPosition = Vec2f(0,0);
@@ -431,13 +458,13 @@ void AtriumDisplayApp::loadImagesThreadFn()
 {
 	ci::ThreadSetup threadSetup; // instantiate this if you're talking to Cinder from a secondary thread
 
-    while( ( ! mShouldQuit ) && (mCurrentProject) && ( ! mCurrentProject->mResources.empty() ) ) {
+    while( ( ! mShouldQuit ) && (mCurrentProject) && ( ! mCurrentProject->mImages.empty() ) ) {
         
         if(mCurrentProject){
             try {
-                console() << "Loading: " << mCurrentProject->mResources.back() << std::endl;
-                mSurfaces->pushFront( loadImage(mCurrentProject->mResources.back()) );
-                mCurrentProject->mResources.pop_back();
+                console() << "Loading: " << mCurrentProject->mImages.back() << std::endl;
+                mSurfaces->pushFront( loadImage(mCurrentProject->mImages.back()) );
+                mCurrentProject->mImages.pop_back();
             }
             catch( ... ) {
                 // just ignore any exceptions
@@ -483,10 +510,15 @@ void AtriumDisplayApp::mouseDown( MouseEvent event )
 void AtriumDisplayApp::update()
 {
     
+    if( mMovie )
+		mMovieFrameTexture = mMovie->getTexture();
+
+    
     if(gTriggerTransition){
         mTransitionState = mTransitionStateNext;
+        gTriggerTransition = false;
         switch (mTransitionStateNext) {
-            case 0: // start
+            case 0: // start and show lab name
                 
                 if(mThread.get()){
                     mThread->join();
@@ -501,7 +533,8 @@ void AtriumDisplayApp::update()
                 timeline().apply( &mStripesNoise, .0f, .5f,EaseOutQuad() );
                 timeline().apply( &mStripesFade, .9f, .5f,EaseInOutQuad() );
                 timeline().apply( &mHeaderFade, 0.f, .5f,EaseInQuad() );
-                timeline().apply( &mProjectTextFade, 0.f, 1.0f,EaseInQuad() );
+                timeline().apply( &mProjectTitleFade, 0.f, 1.0f,EaseInQuad() );
+                timeline().apply( &mProjectDetailsFade, 0.f, 1.0f,EaseInQuad() );
                 timeline().appendTo( &mStripesPosition, Vec2f(0,0), 8.f,EaseOutCubic() );
                 timeline().appendTo( &mStripesNoise, .5f, 5.f,EaseInOutSine() ).delay(7.5f);
                 timeline().apply( &mTitleFade, 1.0f, 4.f,EaseOutExpo() ).delay(6.f);
@@ -512,18 +545,50 @@ void AtriumDisplayApp::update()
                 timeline().appendTo( &mStripesSquareness, 1.0f, 4.5f,EaseInOutQuad() ).delay(12.f);
                 mTransitionStateNext = 1;
                 break;
-            case 1:
+            case 1: // show lab taglines
                 timeline().apply( &mHeaderFade, 1.f, .5f,EaseInQuad() );
                 timeline().apply( &mLogoFade, 1.f, .5f,EaseInCubic() );
                 timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
-                timeline().apply( &mStripesSquareness, 0.f, 5.0f,EaseOutQuad() ).delay(4.f);
+                timeline().apply( &mStripesSquareness, 0.f, 5.0f,EaseInOutQuad() ).delay(4.f);
                 timeline().apply( &mStripesPosition, Vec2f(-2,0), 5.f,EaseInQuad() ).delay(5.5f).finishFn( triggerTransition );
                 timeline().apply( &mStripesNoise, .0f, 5.0f,EaseInOutSine() ).delay(3.5f);
                 timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(5.5f) ;
                 timeline().appendTo( &mLogoFade, 0.f, 1.f,EaseInQuad() ).delay(12.f) ;
                 mTransitionStateNext = 4;
                 break;
-            case 4:
+                
+            case 3: // movie player
+                if( mCurrentProject && !mCurrentProject->mMovies.empty() ) {
+                    if(!mMovie || !mMovie->isPlaying() ){
+                        
+                        loadMovieFile(mCurrentProject->mMovies.back());
+                        mCurrentProject->mMovies.pop_back();
+                        timeline().apply( &mMovieFade, 1.f, 2.5f,EaseInSine() ).delay(.5f);
+                        timeline().add(triggerTransition, getElapsedSeconds()+mMovie->getDuration() );
+                    } else {
+                        timeline().apply( &mMovieFade, .0f, 1.5f,EaseInSine() ).finishFn(triggerTransition);
+                        mTransitionStateNext = 4;
+                    }
+                } else {
+                    mTransitionStateNext = 4;
+                    triggerTransition();
+                }
+                break;
+                
+            case 4: // show slideshow
+                
+                // movie magic
+                if( mFadedTextureFadeCount == 3 && !mCurrentProject->mMovies.empty()){
+                    mTransitionStateNext = 3;
+                    triggerTransition();
+                    break;
+                }
+                
+                if(mMovie) mMovie.reset();
+                if(mMovieFrameTexture) mMovieFrameTexture.reset();
+                
+                // now it's slides
+                
                 if( mSurfaces->isNotEmpty() ) {
                     
                     Surface croppedSurface, newSurface;
@@ -531,6 +596,14 @@ void AtriumDisplayApp::update()
                     FadingTexture * fadingTexture;
                     int whichTexture = randInt(4);
                     
+                    // overrides of random values for deterministic start
+                    
+                    if ( mFadedTextureFadeCount == 0) whichTexture = 3;
+                    if ( mFadedTextureFadeCount == 1) whichTexture = 1;
+                    if ( mFadedTextureFadeCount == 2) whichTexture = 2;
+                    if ( mFadedTextureFadeCount == 3) whichTexture = 1;
+                    if ( mFadedTextureFadeCount == 4) whichTexture = 0;
+
                     if(whichTexture == 0) fadingTexture = &mLeftTexture;
                     if(whichTexture == 1) fadingTexture = &mMidTexture;
                     if(whichTexture == 2) fadingTexture = &mRightTexture;
@@ -548,30 +621,47 @@ void AtriumDisplayApp::update()
                     
                     mFadedTexture = fadingTexture;
                     
-                    timeline().apply( &mProjectTextFade, 1.f, 5.0f,EaseInOutSine() );
-                    
-                } else {
-                    mStripesSquareness = 0;
-                    mStripesNoise = 0;
-                    mStripesFade = 0;
-                    mStripesPosition = Vec2f(1,0);
-                    mTransitionStateNext = 0;
-                    if (mFadedTexture == &mFullTexture) {
-                        mLeftTexture.fadeToSurface(0);
-                        mMidTexture.fadeToSurface(0);
-                        mRightTexture.fadeToSurface(0);
-                        mFullTexture.fadeToSurface(2.f);
-                    } else {
-                        mLeftTexture.fadeToSurface(1.f);
-                        mMidTexture.fadeToSurface(1.5f);
-                        mRightTexture.fadeToSurface(2.f);
+                    if(mFadedTextureFadeCount == 0){
+                        timeline().apply( &mProjectTitleFade, 1.f, 2.0f,EaseInOutSine() );
                     }
-                    timeline().apply( &mProjectTextFade, 0.f, 1.0f,EaseInQuad() );
-                    timeline().add(triggerTransition, getElapsedSeconds()+2.5);
+                    if(mFadedTextureFadeCount == 1){
+                        timeline().apply( &mProjectDetailsFade, 1.f, 2.0f,EaseInOutSine() );
+                    }
+                    if(mFadedTextureFadeCount == 4){
+                        timeline().apply( &mProjectDetailsFade, 0.f, 2.0f,EaseInOutSine() );
+                    }
+                        
+                    mFadedTextureFadeCount++;
+
+                } else {
+                    mTransitionStateNext = -1;
+                    timeline().add(triggerTransition, getElapsedSeconds()+.1f);
                 }
                 break;
+            case -1: // next project
+                
+                mStripesSquareness = 0;
+                mStripesNoise = 0;
+                mStripesFade = 0;
+                mStripesPosition = Vec2f(1,0);
+                mFadedTextureFadeCount = 0;
+                mTransitionStateNext = 0;
+                if (mFadedTexture == &mFullTexture) {
+                    mLeftTexture.fadeToSurface(0);
+                    mMidTexture.fadeToSurface(0);
+                    mRightTexture.fadeToSurface(0);
+                    mFullTexture.fadeToSurface(2.f);
+                } else {
+                    mLeftTexture.fadeToSurface(1.f);
+                    mMidTexture.fadeToSurface(1.5f);
+                    mRightTexture.fadeToSurface(2.f);
+                }
+                timeline().apply( &mProjectTitleFade, 0.f, 1.f,EaseInQuad() );
+                timeline().apply( &mProjectDetailsFade, 0.f, .0f,EaseInQuad() );
+                timeline().add(triggerTransition, getElapsedSeconds()+2.5);
+
+                break;
         }
-        gTriggerTransition = false;
     }
 }
 
@@ -579,7 +669,113 @@ void AtriumDisplayApp::draw()
 {
 	gl::enableAlphaBlending();
 	gl::clear();
+    gl::color(1.,1.,1.,1.);
     
+    float margin = getWindowHeight()/8.f;
+    
+    // PROJECT DETAILS
+    
+    Surface8u renderedHeader;
+    Vec2f headerMeasure;
+    
+    if(mProjectDetailsFade > 0 || mProjectTitleFade > 0){
+        
+        gl::pushMatrices();
+        
+        TextBox headerBox;
+        headerBox.setSize(Vec2i((getWindowWidth()/3.)-(2.5*margin), getWindowHeight()-(4*margin) ));
+        headerBox.setColor(ColorA(1.,1.,1.,1.));
+        headerBox.setFont(mHeaderFont);
+        headerBox.setText(mCurrentProject->mTitle);
+        renderedHeader = headerBox.render();
+        headerMeasure = headerBox.measure();
+        
+        gl::translate(0,headerMeasure.y+(margin*.375));
+        
+        // tags
+        
+        Vec2f tagOffset = Vec2f(0,0);
+        
+        for(int i = 0; i < mCurrentProject->mTags.size(); i++ ){
+            TextBox tagsBox;
+            tagsBox.setColor(ColorA(0.,0.,0.,1.));
+            tagsBox.setFont(mTagFont);
+            tagsBox.setText(boost::to_upper_copy( mCurrentProject->mTags[i] ));
+            Surface8u renderedTag = tagsBox.render();
+            Vec2f tagMeasure = tagsBox.measure();
+       
+            gl::pushMatrices();
+            gl::translate(margin*.25, 0.);
+            gl::translate(tagOffset);
+            gl::color(1,1,1,mProjectDetailsFade*.5);
+            gl::drawSolidRect(Rectf(margin,margin,tagMeasure.x+(margin*1.25),tagMeasure.y+(margin*1.0625)) );
+            gl::color(1.,1.,1.,mProjectDetailsFade);
+            gl::draw(  gl::Texture( renderedTag ), Vec2f(margin*1.125, margin*1.03125) );
+            gl::popMatrices();
+            
+            tagOffset.x += tagMeasure.x+(margin*.375f);
+            if(tagOffset.x > (getWindowWidth()/3.)-(3*margin)){
+                tagOffset.y+=mTagFont.getAscent()+mTagFont.getDescent()+(margin*.125);
+                tagOffset.x = 0;
+            }
+        }
+        
+        if(tagOffset.x > 0.)
+            tagOffset.y += mTagFont.getAscent()+mTagFont.getDescent()+(margin*.25);
+        
+        gl::translate(0, tagOffset.y);
+        
+        // summary
+        
+        TextBox summaryBox;
+        summaryBox.setSize(Vec2i((getWindowWidth()/3.)-(2.5*margin), getWindowHeight()-(2.5*margin)-headerMeasure.y));
+        summaryBox.setColor(ColorA(1.,1.,1.,1.));
+        summaryBox.setFont(mParagraphFont);
+        summaryBox.setText(mCurrentProject->mSummary);
+        Surface8u renderedSummary = summaryBox.render();
+        Vec2f summaryMeasure = summaryBox.measure();
+        // show background box when there's a full texture
+        /*
+        gl::color(0.1,0.1,0.1,mFullTexture.mFade*.75*mProjectTextFade);
+        gl::drawSolidRect(Rectf(margin,margin,summaryMeasure.x+(margin*1.5),summaryMeasure.y+(margin*1.25)) );
+         */
+        gl::color(1.,1.,1.,mProjectDetailsFade);
+        gl::draw(  gl::Texture( renderedSummary ), Vec2f(margin*1.25, margin*1.125 ));
+        
+        gl::translate(0, summaryMeasure.y + (margin*.375));
+
+        // small text
+        
+        TextBox smallBox;
+        smallBox.setSize(Vec2i((getWindowWidth()/3.)-(2.5*margin), getWindowHeight()-(2.5*margin)-headerMeasure.y));
+        smallBox.setColor(ColorA(1.,1.,1.,1.));
+        smallBox.setFont(mSmallFont);
+        
+        boost::gregorian::date_facet* facet(new boost::gregorian::date_facet("%D"));
+        stringstream ss;
+        ss.imbue(std::locale(std::cout.getloc(), facet));
+        ss << mCurrentProject->mDate;
+        
+        smallBox.setText(ss.str());
+        
+        for(int i = 0; i < mCurrentProject->mParticipants.size(); i++ ){
+            smallBox.appendText(" | " + mCurrentProject->mParticipants[i] );
+        }
+        
+
+        Surface8u renderedSmall = smallBox.render();
+        Vec2f smallMeasure = smallBox.measure();
+        
+        gl::color(1.,1.,1.,mProjectDetailsFade);
+        gl::draw(  gl::Texture( renderedSmall ), Vec2f(margin*1.25, margin*1.125 ));
+        
+        
+        gl::popMatrices();
+        
+    }
+    
+    gl::color(1.,1.,1.,1.);
+
     mLeftTexture.draw();
     mMidTexture.draw();
     mRightTexture.draw();
@@ -640,35 +836,74 @@ void AtriumDisplayApp::draw()
         }
     }
     
-    // TEXT
+    // PROJECT TITLE
     
-    float margin = getWindowHeight()/8.f;
-
-    // PROJECT TEXT
-    
-    if(mProjectTextFade > 0){
-        gl::color(1.,1.,1.,mProjectTextFade);
+    if(mProjectTitleFade > 0){
         gl::pushMatrices();
-        
-        TextLayout layout;
-        layout.clear(ColorA(0.,0.,0.,0.1));
-        layout.setFont( mHeaderFont );
-        layout.setColor(ColorA(1.,1.,1.,1.));
-        layout.addLine(" " +mCurrentProject->mTitle + " ");
-        Surface8u rendered = layout.render();
-        gl::draw(  gl::Texture( rendered ), Vec2f(margin, margin));
 
-        TextBox box;
-        box.setSize(Vec2i((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(4*margin) ));
-        layout.setColor(ColorA(1.,1.,1.,1.));
-        box.setFont(mParagraphFont);
-        layout.addLine(mCurrentProject->mSummary);
-        Surface8u renderedBox = box.render();
-        gl::draw(  gl::Texture( renderedBox ), Vec2f(margin, (4*margin) ));
+        // show background box when there's a full texture
+        gl::color(0.1,0.1,0.1,fmaxf(mFullTexture.mFade,mLeftTexture.mFade)*.75*mProjectTitleFade);
+        gl::drawSolidRect(Rectf(margin,margin,headerMeasure.x+(margin*1.5),headerMeasure.y+margin));
+        gl::color(1.,1.,1.,mProjectTitleFade);
+        gl::draw(  gl::Texture( renderedHeader ), Vec2f(margin*1.25, margin));
 
-        
         gl::popMatrices();
+
+    }
+    
+    // MOVIE PLAYER
+    
+    if(mMovieFade > 0){
         
+        if( mMovieFrameTexture ) {
+            gl::color( 0, 0, 0, mMovieFade );
+            gl::drawSolidRect(Rectf(getWindowWidth()/3.f, 0, getWindowWidth(), getWindowHeight()));
+            
+            Color tintColor = Color( 1.f, .95f, .75f);
+            
+            gl::color( tintColor.r, tintColor.g, tintColor.b, mMovieFade );
+            Rectf croppedRect = Rectf(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, (getWindowWidth()/3.f)/mMovieFrameTexture.getAspectRatio());
+            gl::draw( mMovieFrameTexture, croppedRect);
+
+            gl::enableAdditiveBlending();
+            gl::color( 1.0-tintColor.r, 1.0-tintColor.g, 1.0-tintColor.b, mMovieFade*.9 );
+            gl::drawSolidRect(croppedRect);
+            gl::enableAlphaBlending();
+            
+            Rectf timerRect = Rectf(getWindowWidth()*2.f/3.f, 0 , (getWindowWidth()*2.f/3.f) + ((getWindowWidth()/3.f) * mMovie->getCurrentTime()/mMovie->getDuration()), getWindowHeight());
+            
+            gl::color(1., .9,.0, mMovieFade);
+            gl::drawSolidRect(timerRect);
+      
+            gl::color(0.,0.,0.,mHeaderFade);
+            gl::pushMatrices();
+            
+            //TODO: Fix duration clock
+            
+            /*
+            TextBox movieBox;
+            movieBox.setSize(Vec2i((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin) ));
+            movieBox.setFont( mHeaderFont );
+            movieBox.setColor(ColorA(1.,1.,1.,1.));
+            movieBox.setText((boost::format("%1$.03%") % mMovie->getCurrentTime()) );
+            Vec2f movieMeasure = movieBox.measure();
+            
+            Surface8u rendered = movieBox.render();
+            gl::draw(  gl::Texture( rendered ), Vec2f(margin, getWindowHeight()-(margin+headerMeasure.y)+mHeaderFont.getDescent()));
+            */
+            gl::popMatrices();
+
+            
+            
+        }
+        
+        
+        
+/*        if( mMovieInfoTexture ) {
+            glDisable( GL_TEXTURE_RECTANGLE_ARB );
+            gl::draw( mMovieInfoTexture, Vec2f( getWindowWidth()*2.f/3.f, 0) );
+        }
+*/
     }
     
     // SECTION HEADERS
@@ -683,10 +918,11 @@ void AtriumDisplayApp::draw()
         headerBox.setColor(ColorA(0.,0.,0.,1.));
         headerBox.setText(mTaglineStrings.at(mTaglineStringPos));
         
-        Surface8u rendered = headerBox.render();
-        gl::draw(  gl::Texture( rendered ), Vec2f(margin, margin));
+        Vec2f headerMeasure = headerBox.measure();
         
-        //        mHeaderFont->drawStringWrapped(mTaglineStrings.at(mTaglineStringPos), Rectf(margin,margin, (getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin)));
+        Surface8u rendered = headerBox.render();
+        gl::draw(  gl::Texture( rendered ), Vec2f(margin, getWindowHeight()-(margin+headerMeasure.y)+mHeaderFont.getDescent()));
+        
         gl::popMatrices();
         
     }
@@ -819,6 +1055,38 @@ void AtriumDisplayApp::loadNextProject(){
     console() << "Next project is: " + mCurrentProject->mTitle << endl;
     mCurrentProject->reload();
 }
+
+void AtriumDisplayApp::loadMovieFile( const fs::path &moviePath )
+{
+    
+    
+    try {
+		// load up the movie, set it to loop, and begin playing
+		mMovie = qtime::MovieGl::create( moviePath );
+		mMovie->play();
+		
+		// create a texture for showing some info about the movie
+		TextLayout infoText;
+		infoText.clear( ColorA( 0.2f, 0.2f, 0.2f, 0.5f ) );
+		infoText.setColor( Color::white() );
+		infoText.addCenteredLine( moviePath.filename().string() );
+		infoText.addLine( toString( mMovie->getWidth() ) + " x " + toString( mMovie->getHeight() ) + " pixels" );
+		infoText.addLine( toString( mMovie->getDuration() ) + " seconds" );
+		infoText.addLine( toString( mMovie->getNumFrames() ) + " frames" );
+		infoText.addLine( toString( mMovie->getFramerate() ) + " fps" );
+		infoText.setBorder( 4, 2 );
+		mMovieInfoTexture = gl::Texture( infoText.render( true ) );
+	}
+	catch( ... ) {
+		console() << "Unable to load the movie." << std::endl;
+		mMovie->reset();
+		mMovieInfoTexture.reset();
+	}
+    
+	mMovieFrameTexture.reset();
+
+}
+
 
 void AtriumDisplayApp::shutdown()
 {
