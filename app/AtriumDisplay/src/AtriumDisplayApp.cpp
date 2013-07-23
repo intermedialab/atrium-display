@@ -246,7 +246,11 @@ void Project::loadYAMLFile(const fs::path &pYAML){
     }
     
     if(projectYaml["url"]){
-        mURL = Url(projectYaml["url"].as<std::string>());
+        try {
+            mURL = Url(projectYaml["url"].as<std::string>());
+        } catch (...){
+            mURL = Url();
+        }
     }
     
     //std::string         mCreativeCommons;
@@ -265,6 +269,8 @@ void Project::setupResources(const fs::path &p){
         
         sort(resPaths.begin(), resPaths.end()); // sort, since directory iteration
         // is not ordered on some file systems
+        
+        reverse(resPaths.begin(), resPaths.end());
         
         for (paths::const_iterator resIt (resPaths.begin()); resIt != resPaths.end(); ++resIt)
         {
@@ -561,13 +567,14 @@ void AtriumDisplayApp::update()
                 
             case 3: // movie player
                 if( mCurrentProject && !mCurrentProject->mMovies.empty() ) {
-                    if(!mMovie || !mMovie->isPlaying() ){
-                        
+                    if(!mMovie || mMovie->isDone() || !mMovie->isPlaying() ){
                         loadMovieFile(mCurrentProject->mMovies.back());
                         mCurrentProject->mMovies.pop_back();
+                        if(mFadedTexture != &mLeftTexture) mLeftTexture.fadeToSurface(2.f);
                         timeline().apply( &mMovieFade, 1.f, 2.f,EaseInSine() ).delay(.5f);
                         timeline().add(triggerTransition, getElapsedSeconds()+mMovie->getDuration()-1.5f );
                     } else {
+                        mMidTexture.fadeToSurface(0);
                         timeline().apply( &mMovieFade, .0f, 1.5f,EaseInSine() );
                         timeline().add(triggerTransition, getElapsedSeconds()+randFloat(3.5f,5.f));
                         mTransitionStateNext = 4;
@@ -581,9 +588,10 @@ void AtriumDisplayApp::update()
                 
             case 4: // show slideshow
                 
-                // movie magic
-                if( mFadedTextureFadeCount == 3 && !mCurrentProject->mMovies.empty()){
+                // movies at odd fades from fade count 3
+                if( (mFadedTextureFadeCount > 2 && mFadedTextureFadeCount % 2 == 1 )  && !mCurrentProject->mMovies.empty()){
                     mTransitionStateNext = 3;
+                    mFadedTextureFadeCount++;
                     triggerTransition();
                     break;
                 }
@@ -635,13 +643,11 @@ void AtriumDisplayApp::update()
                     if(mFadedTextureFadeCount == 1){
                         timeline().apply( &mProjectDetailsFade, 1.f, 2.0f,EaseInOutSine() );
                     }
-                    if(mFadedTextureFadeCount == 4){
-                        timeline().apply( &mProjectDetailsFade, 0.f, 2.0f,EaseInOutSine() );
-                    }
                     
                     mFadedTextureFadeCount++;
                     
                 } else {
+                    
                     if( !mCurrentProject->mMovies.empty()){
                         timeline().apply( &mProjectTitleFade, 1.f, 2.0f,EaseInOutSine() );
                         timeline().apply( &mProjectDetailsFade, 1.f, 2.0f,EaseInOutSine() );
@@ -945,7 +951,7 @@ void AtriumDisplayApp::draw()
          movieBox.setSize(Vec2i((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin) ));
          movieBox.setFont( mHeaderFont );
          movieBox.setColor(ColorA(1.,1.,1.,1.));
-         movieBox.setText(str( (boost::format("%1$02d:%2$02d:%3$02d") % floor(inverseDuration/60.f) % floor(fmodf(inverseDuration,60.f)) % floor(fmodf(inverseDuration,1.f)*100) )));
+         movieBox.setText(str( (boost::format("%1$02d:%2$02d:%3$02d") % floor(inverseDuration/60.f) % floor(fmodf(inverseDuration,60.f)) % floor(fmodf(inverseDuration,1.f)*mMovie->getFramerate()) )));
          Vec2f movieMeasure = movieBox.measure();
          Surface8u rendered = movieBox.render();
          gl::draw(  gl::Texture( rendered ), Vec2f((getWindowWidth()-margin)-movieMeasure.x, (timeLineRect.getY1()+((timeLineRect.getHeight()-movieMeasure.y)/2.f))));
