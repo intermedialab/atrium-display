@@ -164,7 +164,7 @@ public:
     vector<std::string> mMaterials;
     vector<std::string> mTags;
     std::string         mCreativeCommons;
-    Url                 mURL;
+    Url                 mHomepageURL;
     
 };
 
@@ -244,11 +244,11 @@ void Project::loadYAMLFile(const fs::path &pYAML){
             mTags.push_back(it->as<std::string>());
     }
     
-    if(projectYaml["url"]){
+    if(projectYaml["homepage"]){
         try {
-            mURL = Url(projectYaml["url"].as<std::string>());
+            mHomepageURL = Url(projectYaml["homepage"].as<std::string>());
         } catch (...){
-            mURL = Url();
+            mHomepageURL = Url();
         }
     }
     
@@ -786,8 +786,8 @@ void AtriumDisplayApp::draw()
             smallBox.setText(ss.str());
         }
         
-        if(mCurrentProject->mURL.str().size() > 7){
-            smallBox.appendText(" | " + mCurrentProject->mURL.str());
+        if(mCurrentProject->mHomepageURL.str().size() > 7){
+            smallBox.appendText(" | " + mCurrentProject->mHomepageURL.str());
         }
         for(int i = 0; i < mCurrentProject->mParticipants.size(); i++ ){
             smallBox.appendText(" | ");
