@@ -339,6 +339,8 @@ public:
     Font                    mSmallFont;
     Font                    mTagFont;
     
+    Color                   mTintColor;
+    
 	bool					mShouldQuit;
 	shared_ptr<thread>		mThread;
 	FadingTexture			mFullTexture, mLeftTexture, mMidTexture, mRightTexture;
@@ -406,7 +408,7 @@ void AtriumDisplayApp::setup()
     mMidTexture.mBounds.set(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, getWindowHeight());
     mRightTexture.mBounds.set(getWindowWidth()*2.f/3.f, 0, getWindowWidth(), getWindowHeight());
     
-    mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.95f, .75f);
+    mTintColor = mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.95f, .8f);
     
     mTaglineStrings.push_back("full scale prototyping of computational spaces.");
     
@@ -883,10 +885,6 @@ void AtriumDisplayApp::draw()
         
         if( mMovieFrameTexture ) {
 
-        Color tintColor = Color( 1.f, .95f, .75f);
-        
-        // paint tinted background
-        //gl::color( 1.0-tintColor.r, 1.0-tintColor.g, 1.0-tintColor.b, mMovieFade*.9 );
         gl::color( 0.05, 0.05, 0.05, mMovieFade*.75 );
             
         gl::drawSolidRect(Rectf(getWindowWidth()/3.f, 0, getWindowWidth(), getWindowHeight()));
@@ -895,12 +893,12 @@ void AtriumDisplayApp::draw()
 
             Rectf movieRect = Rectf(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, (getWindowWidth()/3.f)/mMovieFrameTexture.getAspectRatio());
             
-            gl::color( tintColor.r, tintColor.g, tintColor.b, mMovieFade );
+            gl::color( mTintColor.r, mTintColor.g, mTintColor.b, mMovieFade );
             
             gl::draw( mMovieFrameTexture, movieRect);
             
             gl::enableAdditiveBlending();
-            gl::color( 1.0-tintColor.r, 1.0-tintColor.g, 1.0-tintColor.b, mMovieFade*.9 );
+            gl::color( 1.0-mTintColor.r, 1.0-mTintColor.g, 1.0-mTintColor.b, mMovieFade*.9 );
             gl::drawSolidRect(movieRect);
             gl::enableAlphaBlending();
         
