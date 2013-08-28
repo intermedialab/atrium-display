@@ -155,8 +155,7 @@ public:
     
     //    ConcurrentCircularBuffer<Surface> *mSurfaces;
     
-    boost::gregorian::date
-    mDate;
+    boost::gregorian::date mDate;
     std::string         mTitle;
     std::string         mAbstract;
     std::string         mSummary;
@@ -199,7 +198,7 @@ void Project::loadYAMLFile(const fs::path &pYAML){
     
     if(projectYaml["date"]){
         try {
-            mDate = boost::gregorian::from_undelimited_string(projectYaml["date"].as<std::string>());
+            mDate = boost::gregorian::from_string(projectYaml["date"].as<std::string>());
         } catch (...) {
             mDate = boost::gregorian::date(boost::date_time::not_a_date_time);
         }
