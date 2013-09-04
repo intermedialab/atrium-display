@@ -694,26 +694,28 @@ void AtriumDisplayApp::draw()
         Vec2f tagOffset = Vec2f(0,0);
         
         for(int i = 0; i < mCurrentProject->mTags.size(); i++ ){
-            TextBox tagsBox;
-            tagsBox.setColor(ColorA(0.,0.,0.,1.));
-            tagsBox.setFont(mTagFont);
-            tagsBox.setText(boost::to_upper_copy( mCurrentProject->mTags[i] ));
-            Surface8u renderedTag = tagsBox.render();
-            Vec2f tagMeasure = tagsBox.measure();
-            
-            gl::pushMatrices();
-            gl::translate(margin*.25, 0.);
-            gl::translate(tagOffset);
-            gl::color(1,1,1,mProjectDetailsFade*.75);
-            gl::drawSolidRect(Rectf(margin,margin,tagMeasure.x+(margin*1.25),tagMeasure.y+(margin*1.0625)) );
-            gl::color(1.,1.,1.,mProjectDetailsFade);
-            gl::draw(  gl::Texture( renderedTag ), Vec2f(margin*1.125, margin*1.03125) );
-            gl::popMatrices();
-            
-            tagOffset.x += tagMeasure.x+(margin*.375f);
-            if(tagOffset.x > (getWindowWidth()/3.)-(3*margin)){
-                tagOffset.y+=mTagFont.getAscent()+mTagFont.getDescent()+(margin*.2);
-                tagOffset.x = 0;
+            if(boost::to_upper_copy( mCurrentProject->mTags[i] ) != "FEATURED"){
+                TextBox tagsBox;
+                tagsBox.setColor(ColorA(0.,0.,0.,1.));
+                tagsBox.setFont(mTagFont);
+                tagsBox.setText(boost::to_upper_copy( mCurrentProject->mTags[i] ));
+                Surface8u renderedTag = tagsBox.render();
+                Vec2f tagMeasure = tagsBox.measure();
+                
+                gl::pushMatrices();
+                gl::translate(margin*.25, 0.);
+                gl::translate(tagOffset);
+                gl::color(1,1,1,mProjectDetailsFade*.75);
+                gl::drawSolidRect(Rectf(margin,margin,tagMeasure.x+(margin*1.25),tagMeasure.y+(margin*1.0625)) );
+                gl::color(1.,1.,1.,mProjectDetailsFade);
+                gl::draw(  gl::Texture( renderedTag ), Vec2f(margin*1.125, margin*1.03125) );
+                gl::popMatrices();
+                
+                tagOffset.x += tagMeasure.x+(margin*.375f);
+                if(tagOffset.x > (getWindowWidth()/3.)-(3*margin)){
+                    tagOffset.y+=mTagFont.getAscent()+mTagFont.getDescent()+(margin*.2);
+                    tagOffset.x = 0;
+                }
             }
         }
         
