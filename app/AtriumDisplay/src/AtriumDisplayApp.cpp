@@ -111,7 +111,7 @@ void FadingTexture::draw(){
 		gl::draw( mTexture, drawBounds );
 	}
     gl::enableAdditiveBlending();
-    gl::color( 1.0-mColor.r, 1.0-mColor.g, 1.0-mColor.b, mFade*.9 );
+    gl::color( 1.0-mColor.r, 1.0-mColor.g, 1.0-mColor.b, mFade*.5 );
     gl::drawSolidRect(drawBounds);
     gl::enableAlphaBlending();
     
@@ -408,7 +408,7 @@ void AtriumDisplayApp::setup()
     mMidTexture.mBounds.set(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, getWindowHeight());
     mRightTexture.mBounds.set(getWindowWidth()*2.f/3.f, 0, getWindowWidth(), getWindowHeight());
     
-    mTintColor = mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.95f, .8f);
+    mTintColor = mFullTexture.mColor = mLeftTexture.mColor = mMidTexture.mColor = mRightTexture.mColor = Color(1.f,.85f, .75f);
     
     mTaglineStrings.push_back("full scale prototyping of computational spaces.");
     
@@ -471,7 +471,7 @@ void AtriumDisplayApp::loadImagesThreadFn()
         
         if(mCurrentProject){
             try {
-                console() << "Loading: " << mCurrentProject->mImages.back() << std::endl;
+                // console() << "Loading: " << mCurrentProject->mImages.back() << std::endl;
                 mSurfaces->pushFront( loadImage(mCurrentProject->mImages.back()) );
                 mCurrentProject->mImages.pop_back();
             }
@@ -481,34 +481,6 @@ void AtriumDisplayApp::loadImagesThreadFn()
         }
         
     }
-    
-    
-    
-    
-    /*
-     
-     // parse the image URLS from the XML feed and push them into 'urls'
-     const Url sunFlickrGroup = Url( "http://api.flickr.com/services/feeds/photos_public.gne?tags=it,university,copenhagen&format=rss_200&tagmode=all" );
-     console() << sunFlickrGroup.c_str() << endl;
-     const XmlTree xml( loadUrl( sunFlickrGroup ) );
-     for( XmlTree::ConstIter item = xml.begin( "rss/channel/item" ); item != xml.end(); ++item ) {
-     const XmlTree &urlXml = ( ( *item / "media:content" ) );
-     urls.push_back( Url( urlXml["url"] ) );
-     }
-     
-     // load images as Surfaces into our ConcurrentCircularBuffer
-     // don't create gl::Textures on a background thread
-     while( ( ! mShouldQuit ) && ( ! urls.empty() ) ) {
-     try {
-     console() << "Loading: " << urls.back() << std::endl;
-     mSurfaces->pushFront( loadImage( loadUrl( urls.back() ) ) );
-     urls.pop_back();
-     }
-     catch( ... ) {
-     // just ignore any exceptions
-     }
-     }
-     */
 }
 
 void AtriumDisplayApp::mouseDown( MouseEvent event )
@@ -898,7 +870,7 @@ void AtriumDisplayApp::draw()
             gl::draw( mMovieFrameTexture, movieRect);
             
             gl::enableAdditiveBlending();
-            gl::color( 1.0-mTintColor.r, 1.0-mTintColor.g, 1.0-mTintColor.b, mMovieFade*.9 );
+            gl::color( 1.0-mTintColor.r, 1.0-mTintColor.g, 1.0-mTintColor.b, mMovieFade*.5 );
             gl::drawSolidRect(movieRect);
             gl::enableAlphaBlending();
         
@@ -989,9 +961,9 @@ void AtriumDisplayApp::draw()
     
     gl::color(1.,1.,1.,mTitleFade);
     Vec2f stringDims = mTitleFontPrimary->measureString( "INTER" );
-    mTitleFontPrimary->drawString( "INTER", Vec2f((getWindowWidth()/3.)-(stringDims.x+10), getWindowHeight()*0.65) );
-    mTitleFontPrimary->drawString( "MEDIA", Vec2f((getWindowWidth()/3.), getWindowHeight()*0.65) );
-    mTitleFontSecondary->drawString( "LAB", Vec2f((getWindowWidth()*2/3.), getWindowHeight()*0.65) );
+    mTitleFontPrimary->drawString( "INTER", Vec2f((getWindowWidth()/3.)-(stringDims.x+20), getWindowHeight()*0.65) );
+    mTitleFontPrimary->drawString( "MEDIA", Vec2f((getWindowWidth()/3.)+10, getWindowHeight()*0.65) );
+    mTitleFontSecondary->drawString( "LAB", Vec2f((getWindowWidth()*2/3.)+10, getWindowHeight()*0.65) );
     
     
     // SCREEN SEPERATOR BORDERS
@@ -1093,15 +1065,15 @@ bool AtriumDisplayApp::readConfig(){
 
 void AtriumDisplayApp::loadNextProject(){
     
-    console() << "loadNextProject" << endl;
+    // console() << "loadNextProject" << endl;
     
     if(mCurrentProject){
-        console() << "Former project was: " + mCurrentProject->mTitle << endl;
+        // console() << "Former project was: " + mCurrentProject->mTitle << endl;
         mProjects.push_back(mCurrentProject);
         mProjects.pop_front();
     }
     mCurrentProject = mProjects.front();
-    console() << "Next project is: " + mCurrentProject->mTitle << endl;
+    // console() << "Next project is: " + mCurrentProject->mTitle << endl;
     mCurrentProject->reload();
 }
 
