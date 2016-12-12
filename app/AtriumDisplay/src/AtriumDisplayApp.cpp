@@ -18,6 +18,7 @@
 #include <boost/format.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/date_time/gregorian/gregorian.hpp>
+#include <time.h>
 #include <string>
 #include <cstdio> // for std::remove
 
@@ -77,6 +78,13 @@ public:
     Color           mColor;
     gl::TextureRef  mTexture, mLastTexture;
     
+};
+
+class Snowflake {
+public:
+    vec2 position;
+    vec2 speed;
+    float radius;
 };
 
 // Functor which empties the FadingTexture pointed to by ftPtr
@@ -370,6 +378,8 @@ public:
     Anim<float>             mMovieFade;
     int                     mTaglineStringPos;
     vector<string>          mTaglineStrings;
+    
+    vector<Snowflake>       mSnowflakes;
     
     YAML::Node              configYaml;
     
@@ -812,10 +822,27 @@ void AtriumDisplayApp::draw()
                 
                 
             }
-            
+
             gl::color(1., .9,.0, mStripesFade/(numLayers-1.f));
+
+            Color yellow(1., .9, .0);
+            Color red(1., .0, .0);
+            Color blue(0., .4, .75);
+            
+            time_t timeSinceEpoch = time( NULL );
+            struct tm *now = localtime( &timeSinceEpoch );
+            
+            if(now->tm_mon == 11){
+                // it's december
+                gl::color(yellow.r, easeOutCubic(1.0-mStripesNoise)*yellow.g,.0, mStripesFade/(numLayers-1.f));
+            } else {
+                gl::color(1., .0,.0, mStripesFade/(numLayers-1.f));
+            }
+
             if(i==0){
-                gl::color(lerp(1.,0.,easeOutExpo(mStripesNoise)), lerp(.9,.4, easeOutExpo(mStripesNoise)),lerp(0.,.75,easeOutExpo(mStripesNoise)), mStripesFade);
+                gl::color(lerp(yellow.r, blue.r, easeOutExpo(mStripesNoise)),
+                          lerp(yellow.g, blue.g, easeOutExpo(mStripesNoise)),
+                          lerp(yellow.b, blue.b, easeOutExpo(mStripesNoise)), mStripesFade);
             }
             gl::pushMatrices();
             gl::translate(((vec2)mStripesPosition).x * getWindowWidth()*(1.f+(i/numLayers)), ((vec2)mStripesPosition).y * getWindowHeight());
@@ -825,6 +852,52 @@ void AtriumDisplayApp::draw()
             gl::translate(getWindowWidth()/3., 0);
             gl::drawSolid(stripe.at(2));
             gl::popMatrices();
+            
+            if(now->tm_mon == 11){
+                // Snowflake stuff
+                
+                float snowScale = getWindowHeight()*0.04;
+                
+                if(mSnowflakes.size() < 150) {
+                    if(randFloat() < 0.1){
+                        mSnowflakes.push_back(Snowflake());
+                        mSnowflakes.back().radius = (0.4*snowScale) + randFloat(snowScale);
+                        mSnowflakes.back().position.x = randFloat(getWindowWidth());
+                        mSnowflakes.back().position.y = - (mSnowflakes.back().radius);
+                        mSnowflakes.back().speed.x = randFloat(-1.0, 1.0);
+                        mSnowflakes.back().speed.y = randFloat(0.0, 1.0);
+                    }
+                }
+                
+                int iSnowflake = 0;
+                
+                float snowNoiseTime = getElapsedSeconds()*.1;
+                
+                for (Snowflake & sf : mSnowflakes) {
+                    vec2 forces(perlin.noise(snowNoiseTime, iSnowflake++*.005),
+                                1.0);
+
+                    sf.speed *= 0.975;
+                    sf.speed.x = forces.x * snowScale * 0.5 / sf.radius;
+                    sf.speed.y = forces.y * snowScale * 0.5 / sf.radius;
+                    sf.speed.x += ((vec2)mStripesPosition).x * 1.75 * sf.radius;
+                    sf.position.x += sf.speed.x;
+                    sf.position.y = sf.position.y + sf.speed.y;
+                    
+                    
+                    if(sf.position.y > getWindowHeight() + sf.radius){
+                        sf.position.x = randFloat(getWindowWidth());
+                        sf.position.y = - sf.radius ;
+                        sf.speed.x = randFloat(-1, 1);
+                        sf.speed.y = randFloat(0, 1);
+                    }
+                    
+                    gl::color(1,1,1,easeInOutCubic(mStripesNoise)*0.9);
+                    gl::drawSolidCircle(sf.position, sf.radius);
+                }
+                
+            }
+            
         }
     }
     
