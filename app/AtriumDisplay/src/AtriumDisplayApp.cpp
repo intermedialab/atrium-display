@@ -330,6 +330,7 @@ void Project::setupResources(const fs::path &p){
 
 class AtriumDisplayApp : public App {
 public:
+    ~AtriumDisplayApp();
     void setup();
     void mouseDown( MouseEvent event );
     void update();
@@ -399,6 +400,11 @@ public:
     
     Perlin                  perlin;
 };
+
+AtriumDisplayApp::~AtriumDisplayApp(){
+    shutdown();
+}
+
 
 void AtriumDisplayApp::setup()
 {
