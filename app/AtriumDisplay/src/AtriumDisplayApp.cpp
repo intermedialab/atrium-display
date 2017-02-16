@@ -963,59 +963,60 @@ void AtriumDisplayApp::draw()
                 gl::drawSolidRect(movieRect);
             }
             
-            //TODO: subtitles
+            // subtitles
             
-            float currentMovieTime = mMovie->getCurrentTime();
-            
-            if(currentMovieTime > mMovieSubtitlesNextSubTime){
+            if(mMovieSubtitles.getNumChildren() > 0){
                 
-                mMovieSubtitlesSurface.create(10, 10, true);
-
-                for(JsonTree subtitle : mMovieSubtitles){
-                    if(subtitle.getChild("timestamp_begin").getValue<float>() < currentMovieTime &&
-                       subtitle.getChild("timestamp_end").getValue<float>() > currentMovieTime ){
-                        string subtitleString = "";
-                        for(JsonTree line : subtitle.getChild("text").getChildren()){
-                            subtitleString.append(line.getValue<std::string>());
-                            subtitleString.append("\n");
+                float currentMovieTime = mMovie->getCurrentTime();
+                
+                if(currentMovieTime > mMovieSubtitlesNextSubTime){
+                    
+                    mMovieSubtitlesSurface.create(10, 10, true);
+                    
+                    for(JsonTree subtitle : mMovieSubtitles){
+                        if(subtitle.getChild("timestamp_begin").getValue<float>() < currentMovieTime &&
+                           subtitle.getChild("timestamp_end").getValue<float>() > currentMovieTime ){
+                            string subtitleString = "";
+                            for(JsonTree line : subtitle.getChild("text").getChildren()){
+                                subtitleString.append(line.getValue<std::string>());
+                                subtitleString.append("\n");
+                            }
+                            
+                            TextBox subtitleBox;
+                            subtitleBox.setColor(ColorA(1.,1.,1.,1.));
+                            subtitleBox.setFont(mParagraphFont);
+                            subtitleBox.setText(subtitleString);
+                            mMovieSubtitlesSurface = subtitleBox.render();
+                            mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_end").getValue<float>();
+                            break;
                         }
+                        if(subtitle.getChild("timestamp_begin").getValue<float>() > currentMovieTime){
+                            string subtitleString = "";
+                            TextBox subtitleBox;
+                            subtitleBox.setColor(ColorA(1.,1.,1.,1.));
+                            subtitleBox.setFont(mParagraphFont);
+                            subtitleBox.setText(subtitleString);
+                            mMovieSubtitlesSurface = subtitleBox.render();
+                            mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_begin").getValue<float>();
+                            break;
+                        }
+                    }
+                    
+                    if(mMovieSubtitlesSurface.getWidth() > 11.0)
                         
-                        TextBox subtitleBox;
-                        subtitleBox.setColor(ColorA(1.,1.,1.,1.));
-                        subtitleBox.setFont(mParagraphFont);
-                        subtitleBox.setText(subtitleString);
-                        mMovieSubtitlesSurface = subtitleBox.render();
-                        mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_end").getValue<float>();
-                        break;
-                    }
-                    if(subtitle.getChild("timestamp_begin").getValue<float>() > currentMovieTime){
-                        string subtitleString = "";
-                        TextBox subtitleBox;
-                        subtitleBox.setColor(ColorA(1.,1.,1.,1.));
-                        subtitleBox.setFont(mParagraphFont);
-                        subtitleBox.setText(subtitleString);
-                        mMovieSubtitlesSurface = subtitleBox.render();
-                        mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_begin").getValue<float>();
-                        break;
-                    }
+                        // draw subtitle background
+                        
+                        gl::color(0.1,0.1,0.1,.5);
+                    Rectf subtitleRect = Rectf(mLogoTexture->getBounds());
+                    subtitleRect.offset(vec2((getWindowWidth()/3.f)+margin, getWindowHeight()-(margin+subtitleRect.getHeight())) );
+                    gl::drawSolidRect(subtitleRect);
+                    
+                    // draw subtitle texture
+                    
+                    gl::color(1.,1.,1.,1.);
+                    gl::draw(  gl::Texture::create( mMovieSubtitlesSurface ), vec2((getWindowWidth()/3.f)+(margin*1.25), (getWindowHeight()-(margin+(subtitleRect.getHeight()/2.)+(mMovieSubtitlesSurface.getHeight()/2.)))));
                 }
             }
-            
-            if(mMovieSubtitlesSurface.getWidth() > 10.0){
-            
-            // draw subtitle background
-            
-            gl::color(0.1,0.1,0.1,.5);
-            Rectf subtitleRect = Rectf(mLogoTexture->getBounds());
-            subtitleRect.offset(vec2((getWindowWidth()/3.f)+margin, getWindowHeight()-(margin+subtitleRect.getHeight())) );
-            gl::drawSolidRect(subtitleRect);
-            
-            // draw subtitle texture
-            
-            gl::color(1.,1.,1.,1.);
-            gl::draw(  gl::Texture::create( mMovieSubtitlesSurface ), vec2((getWindowWidth()/3.f)+(margin*1.25), (getWindowHeight()-(margin+(subtitleRect.getHeight()/2.)+(mMovieSubtitlesSurface.getHeight()/2.)))));
-            }
-
             // duration clock
             
             Rectf timeLineRect = Rectf(mLogoTexture->getBounds());
@@ -1253,11 +1254,12 @@ void AtriumDisplayApp::loadMovieFile( const fs::path &moviePath )
     
     try {
         // load up the movie, set it to loop, and begin playing
+        mMovie.reset();
         mMovie = qtime::MovieGl::create( moviePath );
         mMovie->setVolume(0);
         mMovie->play();
         mMovieSubtitles.clear();
-        mMovieSubtitlesSurface.create(2, 2, 0);
+        mMovieSubtitlesSurface.create(10, 10, true);
         mMovieSubtitlesNextSubTime = 0;
         mMovieSubtitlesNextSubIndex = 0;
         
@@ -1305,6 +1307,7 @@ void AtriumDisplayApp::loadMovieFile( const fs::path &moviePath )
         mMovieInfoTexture.reset();
     }
     
+    console() << " - loaded movie " << moviePath.filename().string() << " with " << mMovieSubtitles.getNumChildren() << " subtitles" << endl << endl;
     mMovieFrameTexture.reset();
     
 }
