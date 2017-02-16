@@ -20,6 +20,7 @@
 #include <boost/date_time/gregorian/gregorian.hpp>
 #include <time.h>
 #include <string>
+#include <regex>
 #include <cstdio> // for std::remove
 
 //TODO: ADD SCREEN WITH TIMEEDIT SCHEDULE
@@ -89,16 +90,16 @@ public:
 
 // Functor which empties the FadingTexture pointed to by ftPtr
 struct ResetFadingTextureFunctor {
-	ResetFadingTextureFunctor( FadingTexture *ftPtr )
+    ResetFadingTextureFunctor( FadingTexture *ftPtr )
     : mFadingTexturePtr( ftPtr )
-	{}
-	
-	void operator()() {
-		mFadingTexturePtr->mLastTexture.reset();
-		mFadingTexturePtr->mTexture.reset();
-	}
-	
-	FadingTexture	*mFadingTexturePtr;
+    {}
+    
+    void operator()() {
+        mFadingTexturePtr->mLastTexture.reset();
+        mFadingTexturePtr->mTexture.reset();
+    }
+    
+    FadingTexture	*mFadingTexturePtr;
 };
 
 FadingTexture::FadingTexture(){
@@ -111,25 +112,25 @@ void FadingTexture::draw(){
     
     Rectf drawBounds;
     
-	if( mLastTexture ) {
-		gl::color( mColor.r, mColor.g, mColor.b, (1.0f - mCrossFade)*mFade );
-		Rectf textureBounds = mLastTexture->getBounds();
-		drawBounds = textureBounds.getCenteredFit( mBounds, true );
-		gl::draw( mLastTexture, drawBounds );
+    if( mLastTexture ) {
+        gl::color( mColor.r, mColor.g, mColor.b, (1.0f - mCrossFade)*mFade );
+        Rectf textureBounds = mLastTexture->getBounds();
+        drawBounds = textureBounds.getCenteredFit( mBounds, true );
+        gl::draw( mLastTexture, drawBounds );
     }
-	if( mTexture ) {
-		gl::color( mColor.r, mColor.g, mColor.b, mCrossFade*mFade );
-		Rectf textureBounds = mTexture->getBounds();
-		drawBounds = textureBounds.getCenteredFit( mBounds, true );
-		gl::draw( mTexture, drawBounds );
-	}
+    if( mTexture ) {
+        gl::color( mColor.r, mColor.g, mColor.b, mCrossFade*mFade );
+        Rectf textureBounds = mTexture->getBounds();
+        drawBounds = textureBounds.getCenteredFit( mBounds, true );
+        gl::draw( mTexture, drawBounds );
+    }
     {
-    gl::ScopedBlendAdditive  blendAdditive;
-//    gl::enableAdditiveBlending();
-    gl::color( 1.0-mColor.r, 1.0-mColor.g, 1.0-mColor.b, mFade*.5 );
-    gl::drawSolidRect(drawBounds);
+        gl::ScopedBlendAdditive  blendAdditive;
+        //    gl::enableAdditiveBlending();
+        gl::color( 1.0-mColor.r, 1.0-mColor.g, 1.0-mColor.b, mFade*.5 );
+        gl::drawSolidRect(drawBounds);
     }
-//    gl::enableAlphaBlending();
+    //    gl::enableAlphaBlending();
     
 }
 
@@ -179,6 +180,7 @@ public:
     vector<std::string> mCredits;
     vector<std::string> mMaterials;
     vector<std::string> mTags;
+    vector<std::string> mPublished;
     std::string         mCreativeCommons;
     Url                 mHomepageURL;
     
@@ -260,6 +262,13 @@ void Project::loadYAMLFile(const fs::path &pYAML){
             mTags.push_back(it->as<std::string>());
     }
     
+    if(projectYaml["published"]){
+        mPublished.clear();
+        YAML::Node n = projectYaml["published"];
+        for(YAML::const_iterator it=n.begin();it!=n.end();++it)
+            mPublished.push_back(it->as<std::string>());
+    }
+    
     if(projectYaml["homepage"]){
         try {
             mHomepageURL = Url(projectYaml["homepage"].as<std::string>());
@@ -321,12 +330,12 @@ void Project::setupResources(const fs::path &p){
 
 class AtriumDisplayApp : public App {
 public:
-	void setup();
-	void mouseDown( MouseEvent event );
-	void update();
-	void draw();
+    void setup();
+    void mouseDown( MouseEvent event );
+    void update();
+    void draw();
     void loadNextProject();
-	void shutdown();
+    void shutdown();
     
     bool readConfig();
     
@@ -336,12 +345,15 @@ public:
     
     deque<Project*>        mProjects;
     
-	void loadMovieFile( const fs::path &path );
+    void loadMovieFile( const fs::path &path );
     
     qtime::MovieGlRef		mMovie;
     gl::TextureRef			mMovieFrameTexture, mMovieInfoTexture;
     JsonTree                mMovieSubtitles;
-	
+    float                   mMovieSubtitlesNextSubTime;
+    int                     mMovieSubtitlesNextSubIndex;
+    Surface8u               mMovieSubtitlesSurface;
+    
     Project                 *mCurrentProject;
     
     gl::TextureRef	mTitleTexture, mHeaderTexture, mProjectTexture, mLogoTexture;
@@ -357,12 +369,12 @@ public:
     
     Color                   mTintColor;
     
-	bool					mShouldQuit;
-	shared_ptr<thread>		mThread;
-	FadingTexture			mFullTexture, mLeftTexture, mMidTexture, mRightTexture;
+    bool					mShouldQuit;
+    shared_ptr<thread>		mThread;
+    FadingTexture			mFullTexture, mLeftTexture, mMidTexture, mRightTexture;
     FadingTexture *         mFadedTexture;
     int                     mFadedTextureFadeCount;
-	Anim<float>				mFade;
+    Anim<float>				mFade;
     Anim<float>             mTitleFade;
     Anim<float>             mStripesNoise;
     Anim<vec2>              mStripesPosition;
@@ -370,7 +382,7 @@ public:
     Anim<float>             mStripesSquareness;
     int                     mTransitionState;
     int                     mTransitionStateNext;
-	double					mLastTime;
+    double					mLastTime;
     Anim<float>             mLogoFade;
     Anim<float>             mHeaderFade;
     Anim<float>             mProjectTitleFade;
@@ -396,8 +408,8 @@ void AtriumDisplayApp::setup()
     randSeed(random());
     perlin.setSeed(randInt());
     
-	mShouldQuit = false;
-	mSurfaces = new ConcurrentCircularBuffer<SurfaceRef>( 3 ); // room for 5 images
+    mShouldQuit = false;
+    mSurfaces = new ConcurrentCircularBuffer<SurfaceRef>( 3 ); // room for 5 images
     
     // create and launch the thread
     // mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
@@ -412,7 +424,7 @@ void AtriumDisplayApp::setup()
     mTaglineStrings.push_back("full scale prototyping of computational spaces.");
     
     mTaglineStringPos = 0;
-	
+    
 #pragma mark AtriumDisplayApp @Font loading
     
     gl::TextureFont::Format f;
@@ -444,8 +456,8 @@ void AtriumDisplayApp::setup()
     
     //init vars
     
-    mTransitionState = 0; 
-    mTransitionStateNext = 0; 
+    mTransitionState = 0;
+    mTransitionStateNext = 0;
     mFadedTextureFadeCount = 0;
     mTitleFade = 0;
     mHeaderFade = 0;
@@ -465,13 +477,13 @@ void AtriumDisplayApp::setup()
 
 void AtriumDisplayApp::loadImagesThreadFn()
 {
-	ci::ThreadSetup threadSetup; // instantiate this if you're talking to Cinder from a secondary thread
+    ci::ThreadSetup threadSetup; // instantiate this if you're talking to Cinder from a secondary thread
     
     while( ( ! mShouldQuit ) && (mCurrentProject) && ( ! mCurrentProject->mImages.empty() ) ) {
         
         if(mCurrentProject){
             try {
-                console() << "Loading: " << mCurrentProject->mImages.back() << std::endl;
+                // console() << "Loading: " << mCurrentProject->mImages.back() << std::endl;
                 mSurfaces->pushFront( Surface::create(loadImage( mCurrentProject->mImages.back() )) );
             }
             catch( ... ) {
@@ -492,7 +504,7 @@ void AtriumDisplayApp::update()
 {
     
     if( mMovie )
-		mMovieFrameTexture = mMovie->getTexture();
+        mMovieFrameTexture = mMovie->getTexture();
     
     
     if(gTriggerTransition){
@@ -664,8 +676,11 @@ void AtriumDisplayApp::update()
 
 void AtriumDisplayApp::draw()
 {
+    time_t timeSinceEpoch = time( NULL );
+    struct tm *now = localtime( &timeSinceEpoch );
+    
     gl::ScopedBlendAlpha  blendAlpha;
-	gl::clear();
+    gl::clear();
     gl::color(1.,1.,1.,1.);
     
     float margin = getWindowHeight()/8.f;
@@ -744,7 +759,7 @@ void AtriumDisplayApp::draw()
         gl::translate(0, summaryMeasure.y + (margin*.375));
         
         gl::popMatrices();
-
+        
         // small text
         
         TextBox smallBox;
@@ -783,7 +798,7 @@ void AtriumDisplayApp::draw()
     mRightTexture.draw();
     mFullTexture.draw();
     
-    if(mStripesFade > 0){
+    if(mStripesFade > 0.0001){
         
         int numLayers = 3;
         
@@ -822,23 +837,24 @@ void AtriumDisplayApp::draw()
                 
                 
             }
-
-            gl::color(1., .9,.0, mStripesFade/(numLayers-1.f));
-
-            Color yellow(1., .9, .0);
-            Color red(1., .0, .0);
-            Color blue(0., .4, .75);
             
-            time_t timeSinceEpoch = time( NULL );
-            struct tm *now = localtime( &timeSinceEpoch );
+            gl::color(1., .9,.0, mStripesFade/(numLayers-1.f));
+            
+            Color yellow(1., .9, .0);
+            Color snowbackground(.05, .0, 0.666);
+            Color blue(0., .4, .75);
             
             if(now->tm_mon == 11){
                 // it's december
-                gl::color(yellow.r, easeOutCubic(1.0-mStripesNoise)*yellow.g,.0, mStripesFade/(numLayers-1.f));
+                
+                gl::color(lerp(yellow.r, snowbackground.r, easeOutCubic(mStripesNoise)),
+                          lerp(yellow.g, snowbackground.g, easeOutCubic(mStripesNoise)),
+                          lerp(yellow.b, snowbackground.b, easeOutCubic(mStripesNoise)),
+                          mStripesFade/(numLayers-1.f));
             } else {
-                gl::color(1., .0,.0, mStripesFade/(numLayers-1.f));
+                gl::color(yellow.r, yellow.g, yellow.b, mStripesFade/(numLayers-1.f));
             }
-
+            
             if(i==0){
                 gl::color(lerp(yellow.r, blue.r, easeOutExpo(mStripesNoise)),
                           lerp(yellow.g, blue.g, easeOutExpo(mStripesNoise)),
@@ -854,11 +870,11 @@ void AtriumDisplayApp::draw()
             gl::popMatrices();
             
             if(now->tm_mon == 11){
-                // Snowflake stuff
+                // Snowflake stuff in december
                 
                 float snowScale = getWindowHeight()*0.04;
                 
-                if(mSnowflakes.size() < 150) {
+                if(mSnowflakes.size() < 100) {
                     if(randFloat() < 0.1){
                         mSnowflakes.push_back(Snowflake());
                         mSnowflakes.back().radius = (0.4*snowScale) + randFloat(snowScale);
@@ -876,7 +892,7 @@ void AtriumDisplayApp::draw()
                 for (Snowflake & sf : mSnowflakes) {
                     vec2 forces(perlin.noise(snowNoiseTime, iSnowflake++*.005),
                                 1.0);
-
+                    
                     sf.speed *= 0.975;
                     sf.speed.x = forces.x * snowScale * 0.5 / sf.radius;
                     sf.speed.y = forces.y * snowScale * 0.5 / sf.radius;
@@ -892,7 +908,9 @@ void AtriumDisplayApp::draw()
                         sf.speed.y = randFloat(0, 1);
                     }
                     
-                    gl::color(1,1,1,easeInOutCubic(mStripesNoise)*0.9);
+                    gl::color(1,1,0.6,easeInOutCubic(mStripesNoise)*0.65);
+                    
+                    gl::ScopedBlendAdditive  blendAdditive;
                     gl::drawSolidCircle(sf.position, sf.radius);
                 }
                 
@@ -921,13 +939,13 @@ void AtriumDisplayApp::draw()
     if(mMovieFade > 0){
         
         if( mMovieFrameTexture ) {
-
-        gl::color( 0.05, 0.05, 0.05, mMovieFade*.75 );
             
-        gl::drawSolidRect(Rectf(getWindowWidth()/3.f, 0, getWindowWidth(), getWindowHeight()));
-        
-            // movie 
-
+            gl::color( 0.05, 0.05, 0.05, mMovieFade*.75 );
+            
+            gl::drawSolidRect(Rectf(getWindowWidth()/3.f, 0, getWindowWidth(), getWindowHeight()));
+            
+            // movie
+            
             Rectf movieRect = Rectf(getWindowWidth()/3.f, 0, getWindowWidth()*2.f/3.f, (getWindowWidth()/3.f)/mMovieFrameTexture->getAspectRatio());
             
             gl::color( mTintColor.r, mTintColor.g, mTintColor.b, mMovieFade );
@@ -938,31 +956,84 @@ void AtriumDisplayApp::draw()
                 gl::color( 1.0-mTintColor.r, 1.0-mTintColor.g, 1.0-mTintColor.b, mMovieFade*.5 );
                 gl::drawSolidRect(movieRect);
             }
-        
-        // duration clock
-        
-        Rectf timeLineRect = Rectf(mLogoTexture->getBounds());
-        timeLineRect.offset(vec2((getWindowWidth()*2.f/3.f)+margin, getWindowHeight()-(margin+timeLineRect.getHeight())) );
-        
-        float timeOffset = (mMovie->getCurrentTime()/mMovie->getDuration());
-        
-        gl::color( .1f, .1f, .1f, .9f*mMovieFade);
-        
-        gl::drawSolidRect(timeLineRect);
+            
+            //TODO: subtitles
+            
+            float currentMovieTime = mMovie->getCurrentTime();
+            
+            if(currentMovieTime > mMovieSubtitlesNextSubTime){
+                
+                mMovieSubtitlesSurface.create(10, 10, true);
+
+                for(JsonTree subtitle : mMovieSubtitles){
+                    if(subtitle.getChild("timestamp_begin").getValue<float>() < currentMovieTime &&
+                       subtitle.getChild("timestamp_end").getValue<float>() > currentMovieTime ){
+                        string subtitleString = "";
+                        for(JsonTree line : subtitle.getChild("text").getChildren()){
+                            subtitleString.append(line.getValue<std::string>());
+                            subtitleString.append("\n");
+                        }
+                        
+                        TextBox subtitleBox;
+                        subtitleBox.setColor(ColorA(1.,1.,1.,1.));
+                        subtitleBox.setFont(mParagraphFont);
+                        subtitleBox.setText(subtitleString);
+                        mMovieSubtitlesSurface = subtitleBox.render();
+                        mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_end").getValue<float>();
+                        break;
+                    }
+                    if(subtitle.getChild("timestamp_begin").getValue<float>() > currentMovieTime){
+                        string subtitleString = "";
+                        TextBox subtitleBox;
+                        subtitleBox.setColor(ColorA(1.,1.,1.,1.));
+                        subtitleBox.setFont(mParagraphFont);
+                        subtitleBox.setText(subtitleString);
+                        mMovieSubtitlesSurface = subtitleBox.render();
+                        mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_begin").getValue<float>();
+                        break;
+                    }
+                }
+            }
+            
+            if(mMovieSubtitlesSurface.getWidth() > 10.0){
+            
+            // draw subtitle background
+            
+            gl::color(0.1,0.1,0.1,.5);
+            Rectf subtitleRect = Rectf(mLogoTexture->getBounds());
+            subtitleRect.offset(vec2((getWindowWidth()/3.f)+margin, getWindowHeight()-(margin+subtitleRect.getHeight())) );
+            gl::drawSolidRect(subtitleRect);
+            
+            // draw subtitle texture
+            
+            gl::color(1.,1.,1.,1.);
+            gl::draw(  gl::Texture::create( mMovieSubtitlesSurface ), vec2((getWindowWidth()/3.f)+(margin*1.25), (getWindowHeight()-(margin+(subtitleRect.getHeight()/2.)+(mMovieSubtitlesSurface.getHeight()/2.)))));
+            }
+
+            // duration clock
+            
+            Rectf timeLineRect = Rectf(mLogoTexture->getBounds());
+            timeLineRect.offset(vec2((getWindowWidth()*2.f/3.f)+margin, getWindowHeight()-(margin+timeLineRect.getHeight())) );
+            
+            float timeOffset = (mMovie->getCurrentTime()/mMovie->getDuration());
+            
+            gl::color( .1f, .1f, .1f, .9f*mMovieFade);
+            
+            gl::drawSolidRect(timeLineRect);
             Area vp(timeLineRect.getOffset(vec2(0,-(timeLineRect.y1-margin)) ));
             gl::pushViewport(vp.getUL(), vp.getSize());
-        gl::pushMatrices();
-        gl::scale(getWindowWidth()*1.0f/timeLineRect.getWidth(),getWindowHeight()*1.0f/timeLineRect.getHeight() );
-
-        vector<PolyLine2f> vedges;
-        float segmentWidth = timeLineRect.getHeight() * (16.f/9.f) * .5f;
-        
-        vedges.push_back( PolyLine2f() );
-        vedges.back().push_back( vec2( segmentWidth , 0 ) );
-        vedges.back().push_back( vec2( segmentWidth*2.f , 0 ) );
-        vedges.back().push_back( vec2( segmentWidth, timeLineRect.getHeight()) );
-        vedges.back().push_back( vec2( 0, timeLineRect.getHeight()) );
-
+            gl::pushMatrices();
+            gl::scale(getWindowWidth()*1.0f/timeLineRect.getWidth(),getWindowHeight()*1.0f/timeLineRect.getHeight() );
+            
+            vector<PolyLine2f> vedges;
+            float segmentWidth = timeLineRect.getHeight() * (16.f/9.f) * .5f;
+            
+            vedges.push_back( PolyLine2f() );
+            vedges.back().push_back( vec2( segmentWidth , 0 ) );
+            vedges.back().push_back( vec2( segmentWidth*2.f , 0 ) );
+            vedges.back().push_back( vec2( segmentWidth, timeLineRect.getHeight()) );
+            vedges.back().push_back( vec2( 0, timeLineRect.getHeight()) );
+            
             gl::translate(lerp( -segmentWidth, timeLineRect.getWidth()-(segmentWidth*6.f),timeOffset),0.f);
             for(float x = 0; x < timeLineRect.getWidth(); x+=segmentWidth*2.f){
                 gl::color( 1.f, .9f, .0f, mMovieFade);
@@ -972,36 +1043,42 @@ void AtriumDisplayApp::draw()
                 gl::drawSolid(vedges.at(0));
                 gl::translate(-segmentWidth,0);
             }
-
-        gl::popMatrices();
-        
-        gl::popViewport();
-        
-        gl::color( 1.f, 1.f, 1.f, mMovieFade);
-
+            
+            gl::popMatrices();
+            
+            gl::popViewport();
+            
+            gl::color( 1.f, 1.f, 1.f, mMovieFade);
+            
             float inverseDuration = mMovie->getDuration() - mMovie->getCurrentTime();
             
-         TextBox movieBox;
-         movieBox.setSize(ivec2((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin) ));
-         movieBox.setFont( mHeaderFont );
-         movieBox.setColor(ColorA(1.,1.,1.,1.));
-         movieBox.setText(str( (boost::format("%1$02d:%2$02d:%3$02d") % floor(inverseDuration/60.f) % floor(fmodf(inverseDuration,60.f)) % floor(fmodf(inverseDuration,1.f)*mMovie->getFramerate()) )));
-         vec2 movieMeasure = movieBox.measure();
-         Surface8u rendered = movieBox.render();
+            TextBox movieBox;
+            movieBox.setSize(ivec2((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin) ));
+            movieBox.setFont( mHeaderFont );
+            movieBox.setColor(ColorA(1.,1.,1.,1.));
+            movieBox.setText(str( (boost::format("%1$02d:%2$02d:%3$02d") % floor(inverseDuration/60.f) % floor(fmodf(inverseDuration,60.f)) % floor(fmodf(inverseDuration,1.f)*mMovie->getFramerate()) )));
+            vec2 movieMeasure = movieBox.measure();
+            Surface8u rendered = movieBox.render();
             gl::draw(  gl::Texture::create( rendered ), vec2((getWindowWidth()-margin)-movieMeasure.x, (timeLineRect.getY1()+((timeLineRect.getHeight()-movieMeasure.y)/2.f))));
         }
     }
     
-    // SECTION HEADERS
+    // SECTION HEADERS (TAGLINES)
     
     if(mHeaderFade > 0){
-        gl::color(0.,0.,0.,mHeaderFade);
+        if(now->tm_mon == 11) // it's december
+            gl::color(1.,1.,1.,mHeaderFade);
+        else
+            gl::color(0.,0.,0.,mHeaderFade);
         gl::pushMatrices();
         
         TextBox headerBox;
         headerBox.setSize(ivec2((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin) ));
         headerBox.setFont( mHeaderFont );
-        headerBox.setColor(ColorA(0.,0.,0.,1.));
+        if(now->tm_mon == 11) // it's december
+            headerBox.setColor(ColorA(1.,1.,1.,1.));
+        else
+            headerBox.setColor(ColorA(0.,0.,0.,1.));
         headerBox.setText(mTaglineStrings.at(mTaglineStringPos));
         
         vec2 headerMeasure = headerBox.measure();
@@ -1039,6 +1116,8 @@ void AtriumDisplayApp::draw()
     
 }
 
+#pragma mark LOADING PROJECTS AND CONFIG
+
 bool AtriumDisplayApp::readConfig(){
     
     // load configuration file and find ressource path
@@ -1072,6 +1151,10 @@ bool AtriumDisplayApp::readConfig(){
                         mProjects.clear();
                         mCurrentProject = NULL;
                         
+                        int totalProjects = 0;
+                        
+                        console() << "Loading projects from " << resIt->relative_path() << endl << endl;
+                        
                         for (paths::const_iterator prjIt (prjPaths.begin()); prjIt != prjPaths.end(); ++prjIt)
                         {
                             if (fs::is_directory(*prjIt)) {
@@ -1080,13 +1163,31 @@ bool AtriumDisplayApp::readConfig(){
                                     
                                     Project *p = new Project(*prjIt);
                                     
-                                    mProjects.push_back(p);
+                                    // Filter projects
                                     
+                                    bool published = false;
+                                    
+                                    totalProjects++;
+                                    
+                                    for(int i = 0; i < p->mPublished.size(); i++ ){
+                                        if(boost::to_upper_copy( p->mPublished[i] ) == "DISPLAYS"){
+                                            published = true;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if(published){
+                                        console() << " + " << p->mTitle << endl;
+                                        mProjects.push_back(p);
+                                    } else {
+                                        console() << " - " << p->mTitle << endl;
+                                        delete p;
+                                    }
                                 }
                                 
                             }
                         }
-                        
+                        console() << endl <<  mProjects.size() << " projects loaded for displays of " << totalProjects << " total projects" << endl << endl;
                     }
                     
                 } else {
@@ -1145,42 +1246,60 @@ void AtriumDisplayApp::loadMovieFile( const fs::path &moviePath )
 {
     
     try {
-		// load up the movie, set it to loop, and begin playing
-		mMovie = qtime::MovieGl::create( moviePath );
-		mMovie->play();
-		
-		// create a texture for showing some info about the movie
-		TextLayout infoText;
-		infoText.clear( ColorA( 0.2f, 0.2f, 0.2f, 0.5f ) );
-		infoText.setColor( Color::white() );
-		infoText.addCenteredLine( moviePath.filename().string() );
-		infoText.addLine( toString( mMovie->getWidth() ) + " x " + toString( mMovie->getHeight() ) + " pixels" );
-		infoText.addLine( toString( mMovie->getDuration() ) + " seconds" );
-		infoText.addLine( toString( mMovie->getNumFrames() ) + " frames" );
-		infoText.addLine( toString( mMovie->getFramerate() ) + " fps" );
-		infoText.setBorder( 4, 2 );
+        // load up the movie, set it to loop, and begin playing
+        mMovie = qtime::MovieGl::create( moviePath );
+        mMovie->setVolume(0);
+        mMovie->play();
+        mMovieSubtitles.clear();
+        mMovieSubtitlesSurface.create(2, 2, 0);
+        mMovieSubtitlesNextSubTime = 0;
+        mMovieSubtitlesNextSubIndex = 0;
+        
+        // create a texture for showing some info about the movie
+        TextLayout infoText;
+        infoText.clear( ColorA( 0.2f, 0.2f, 0.2f, 0.5f ) );
+        infoText.setColor( Color::white() );
+        infoText.addCenteredLine( moviePath.filename().string() );
+        infoText.addLine( toString( mMovie->getWidth() ) + " x " + toString( mMovie->getHeight() ) + " pixels" );
+        infoText.addLine( toString( mMovie->getDuration() ) + " seconds" );
+        infoText.addLine( toString( mMovie->getNumFrames() ) + " frames" );
+        infoText.addLine( toString( mMovie->getFramerate() ) + " fps" );
+        infoText.setBorder( 4, 2 );
         mMovieInfoTexture = gl::Texture::create( infoText.render( true ) );
         
         try {
             
             std::string movieSubtitleJsPath = moviePath.generic_string() + ".js";
             if(fs::exists(movieSubtitleJsPath)){
-//                JsonTree subtitles(loadFile(movieSubtitleJsPath));
-                console() << loadFile(movieSubtitleJsPath) << endl;
+                std::string fileString = loadString(loadFile(movieSubtitleJsPath));
+                
+                fileString = std::regex_replace (fileString, std::regex("\\\\\""),"\"");
+                
+                //console() << fileString << endl << endl;
+                
+                std::smatch matches;
+                std::regex exp ("(\"subtitles\":)(.*)");
+                
+                JsonTree subtitles;
+                
+                if(std::regex_search(fileString, matches, exp)){
+                    fileString = std::string("{").append(matches[0]);
+                    mMovieSubtitles = JsonTree(fileString).getChild("subtitles");
+                    //console() << mMovieSubtitles << endl;
+                }
             }
         }
-        catch( ... ) {
-            
-            console() << "Unable to load the subtitles." << std::endl;
+        catch( std::exception& e ) {
+            console() << e.what() << endl;
         }
-	}
-	catch( ... ) {
-		console() << "Unable to load the movie." << std::endl;
-		mMovie.reset();
-		mMovieInfoTexture.reset();
-	}
+    }
+    catch( ... ) {
+        console() << "Unable to load the movie." << std::endl;
+        mMovie.reset();
+        mMovieInfoTexture.reset();
+    }
     
-	mMovieFrameTexture.reset();
+    mMovieFrameTexture.reset();
     
 }
 
