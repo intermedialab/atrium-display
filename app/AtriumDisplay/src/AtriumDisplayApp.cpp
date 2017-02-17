@@ -576,7 +576,6 @@ void AtriumDisplayApp::update()
                         
                         SearchQuery.ResetPosition();
                         
-                        
                         delete mTimeEditCalendar;
                         
                         fs::remove(mTimeEditCalendarTmpFile);
@@ -1055,6 +1054,7 @@ void AtriumDisplayApp::draw()
                     for(JsonTree subtitle : mMovieSubtitles){
                         if(subtitle.getChild("timestamp_begin").getValue<float>() < currentMovieTime &&
                            subtitle.getChild("timestamp_end").getValue<float>() > currentMovieTime ){
+                            // in a subtitle
                             string subtitleString = "";
                             for(JsonTree line : subtitle.getChild("text").getChildren()){
                                 subtitleString.append(line.getValue<std::string>());
@@ -1069,7 +1069,22 @@ void AtriumDisplayApp::draw()
                             mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_end").getValue<float>();
                             break;
                         }
+                        
+                        //FIXME: Last subtitle keeps hanging 
+                        
+                        if(subtitle.getChild("timestamp_end").getValue<float>() > currentMovieTime){
+                            // after a subtitle (should only trigger after last title)
+                            string subtitleString = "";
+                            TextBox subtitleBox;
+                            subtitleBox.setColor(ColorA(1.,1.,1.,1.));
+                            subtitleBox.setFont(mParagraphFont);
+                            subtitleBox.setText(subtitleString);
+                            mMovieSubtitlesSurface = subtitleBox.render();
+                            mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_begin").getValue<float>();
+                            break;
+                        }
                         if(subtitle.getChild("timestamp_begin").getValue<float>() > currentMovieTime){
+                            // before a subtitle
                             string subtitleString = "";
                             TextBox subtitleBox;
                             subtitleBox.setColor(ColorA(1.,1.,1.,1.));
