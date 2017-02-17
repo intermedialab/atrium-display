@@ -21,6 +21,8 @@
 #include <time.h>
 #include <string>
 #include <regex>
+#include <fstream>
+#include "dispatch/dispatch.h"
 #include <cstdio> // for std::remove
 
 //TODO: ADD SCREEN WITH TIMEEDIT SCHEDULE
@@ -31,6 +33,7 @@ namespace std { using ::remove; }
 #endif
 
 #include "yaml.h"
+#include "icalendar.h"
 
 using namespace ci;
 using namespace ci::app;
@@ -364,6 +367,7 @@ public:
     
     Font                    mHeaderFont;
     Font                    mParagraphFont;
+    Font                    mParagraphFontBold;
     Font                    mSubtitleFont;
     Font                    mSmallFont;
     Font                    mTagFont;
@@ -386,6 +390,7 @@ public:
     double					mLastTime;
     Anim<float>             mLogoFade;
     Anim<float>             mHeaderFade;
+    Anim<float>             mScheduleFade;
     Anim<float>             mProjectTitleFade;
     Anim<float>             mProjectDetailsFade;
     Anim<float>             mMovieFade;
@@ -395,6 +400,8 @@ public:
     vector<Snowflake>       mSnowflakes;
     
     YAML::Node              configYaml;
+    
+    ICalendar               *mTimeEditCalendar;
     
     fs::path                configResourcePath;
     
@@ -454,6 +461,7 @@ void AtriumDisplayApp::setup()
     // Font objects
     mHeaderFont = Font( loadResource(RES_CUSTOM_FONT_LIGHT), getWindowHeight()*0.1 );
     mParagraphFont = Font( loadResource(RES_CUSTOM_FONT_REGULAR), getWindowHeight()*0.0475 );
+    mParagraphFontBold = Font( loadResource(RES_CUSTOM_FONT_SEMIBOLD), getWindowHeight()*0.0475 );
     mSubtitleFont = Font( loadResource(RES_CUSTOM_FONT_SEMIBOLD), getWindowHeight()*0.065 );
     mSmallFont = Font( loadResource(RES_CUSTOM_FONT_SEMIBOLD), getWindowHeight()*0.025 );
     // mTagFont = Font( loadResource(RES_CUSTOM_FONT_REGULAR), getWindowHeight()*0.03 );
@@ -472,8 +480,11 @@ void AtriumDisplayApp::setup()
     mProjectDetailsFade = 0;
     mMovieFade = 0;
     mStripesFade = 0;
+    mScheduleFade = 0;
     mStripesSquareness = 1;
     mStripesPosition = vec2(0,0);
+    
+    mTimeEditCalendar = new ICalendar(std::string("tmp_").append(fs::path(RES_CUSTOM_ICS_FILE).generic_string()).c_str());
     
     readConfig();
     
@@ -527,6 +538,64 @@ void AtriumDisplayApp::update()
                 loadNextProject();
                 mThread = shared_ptr<thread>( new thread( bind( &AtriumDisplayApp::loadImagesThreadFn, this ) ) );
                 
+            {
+                
+                // Update calendar
+                Date now;
+                dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                    try {
+                        
+                        std::string iCalStr = loadString(loadUrl("http://intermedia.itu.dk/public/calendar/timeEditIcs.php"));
+                        std::string myPath = RES_CUSTOM_ICS_FILE;
+                        
+                        // Get an ofstream which is what you'll use to write to your file.
+                        std::ofstream oStream( myPath );
+                        
+                        // write the string.
+                        oStream << iCalStr;
+                        oStream.close();
+                        
+                        ICalendar tmpCalendar(fs::path(RES_CUSTOM_ICS_FILE).generic_string().c_str());
+                        
+                        ::Event *CurrentEvent;
+                        ICalendar::Query SearchQuery(&tmpCalendar);
+                        
+                        SearchQuery.Criteria.From.SetToNow();
+                        SearchQuery.Criteria.From[HOUR] = 0;
+                        SearchQuery.Criteria.From[MINUTE] = 0;
+                        SearchQuery.Criteria.From[SECOND] = 0;
+                        SearchQuery.Criteria.To.SetToNow();
+                        SearchQuery.Criteria.To[DAY] += 31;
+                        SearchQuery.Criteria.To[HOUR] = 0;
+                        SearchQuery.Criteria.To[MINUTE] = 0;
+                        SearchQuery.Criteria.To[SECOND] = 0;
+                        
+                        SearchQuery.ResetPosition();
+                        
+                        string tmpCalendarfileName = std::string("tmp_").append(fs::path(RES_CUSTOM_ICS_FILE).generic_string());
+                        delete mTimeEditCalendar;
+                        remove(tmpCalendarfileName.c_str());
+                        
+                        mTimeEditCalendar = new ICalendar(tmpCalendarfileName.c_str());
+                        
+                        while ((CurrentEvent = SearchQuery.GetNextEvent(false)) != NULL) {
+                            //Correct for missing time zone
+                            CurrentEvent->DtStart[HOUR] +=1;
+                            CurrentEvent->DtEnd[HOUR] +=1;
+                            
+                            mTimeEditCalendar->AddEvent(new ::Event(*CurrentEvent));
+                        }
+                        
+                        mTimeEditCalendar->Sort();
+                        
+                    } catch (std::exception& e) {
+                        console() << e.what() << endl;
+                    }
+                    
+                });
+                
+            }
+                
                 timeline().apply( &mStripesSquareness, 0.0f, 0.f,EaseOutQuad() );
                 timeline().apply( &mStripesPosition, vec2(1,0), 0.f,EaseInQuad() );
                 timeline().apply( &mStripesNoise, .0f, .5f,EaseOutQuad() );
@@ -544,15 +613,20 @@ void AtriumDisplayApp::update()
                 timeline().appendTo( &mStripesSquareness, 1.0f, 4.5f,EaseInOutQuad() ).delay(12.f);
                 mTransitionStateNext = 1;
                 break;
-            case 1: // show lab taglines
+            case 1: // show lab taglines and calendar
                 timeline().apply( &mHeaderFade, 1.f, .5f,EaseInQuad() );
                 timeline().apply( &mLogoFade, 1.f, .5f,EaseInQuad() );
                 timeline().apply( &mStripesFade, 1.0f, 1.5f,EaseInOutQuad() );
                 timeline().apply( &mStripesSquareness, 0.f, 5.0f,EaseInOutQuad() ).delay(4.f);
-                timeline().apply( &mStripesPosition, vec2(-2,0), 5.f,EaseInQuad() ).delay(5.5f).finishFn( triggerTransition );
-                timeline().apply( &mStripesNoise, .0f, 5.0f,EaseInOutSine() ).delay(3.5f);
-                timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(5.5f) ;
-                timeline().appendTo( &mLogoFade, 0.f, 1.f,EaseInQuad() ).delay(12.f) ;
+                timeline().appendTo( &mStripesSquareness, 1.f, 5.0f,EaseInOutQuad() );
+                timeline().appendTo( &mStripesSquareness, 0.f, 3.5f,EaseInOutQuad() ).delay(10.f);
+                timeline().apply( &mStripesNoise, .25f, 5.0,EaseInOutSine() ).delay(3.5f);
+                timeline().appendTo( &mStripesNoise, .0f, 5.0f,EaseInOutSine() ).delay(15.f);
+                timeline().apply( &mStripesPosition, vec2(-2,0), 5.f,EaseInQuad() ).delay(26).finishFn( triggerTransition );
+                timeline().apply( &mScheduleFade, 1.f, 1.5f,EaseInOutSine() ).delay(10.5f);
+                timeline().appendTo( &mScheduleFade, .0f, 1.f,EaseInOutSine() ).delay(12.f);
+                timeline().appendTo( &mHeaderFade, 0.f, 1.5f,EaseInQuad() ).delay(5.f);
+                timeline().appendTo( &mLogoFade, 0.f, 1.f,EaseInQuad() ).delay(32.f);
                 mTransitionStateNext = 4;
                 break;
                 
@@ -1002,11 +1076,12 @@ void AtriumDisplayApp::draw()
                         }
                     }
                     
-                    if(mMovieSubtitlesSurface.getWidth() > 11.0)
-                        
-                        // draw subtitle background
-                        
-                        gl::color(0.1,0.1,0.1,.5);
+                }
+                if(mMovieSubtitlesSurface.getWidth() > 11.0){
+                    
+                    // draw subtitle background
+                    
+                    gl::color(0.1,0.1,0.1,.5);
                     Rectf subtitleRect = Rectf(mLogoTexture->getBounds());
                     subtitleRect.offset(vec2((getWindowWidth()/3.f)+margin, getWindowHeight()-(margin+subtitleRect.getHeight())) );
                     gl::drawSolidRect(subtitleRect);
@@ -1095,6 +1170,166 @@ void AtriumDisplayApp::draw()
         
         gl::popMatrices();
         
+    }
+    
+    if(mScheduleFade > 0){
+        
+        // Schedule
+        
+        if(now->tm_mon == 11) // it's december
+            gl::color(1.,1.,1.,mScheduleFade);
+        else
+            gl::color(0.,0.,0.,mScheduleFade);
+        
+        TextLayout calendarLayout;
+        
+        if(now->tm_mon == 11){ // it's december
+            calendarLayout.clear( ColorA( 1.f, 1.f, 1.f, 0.f ) );
+            calendarLayout.setColor(ColorA(1.,1.,1.,1.));
+        } else {
+            calendarLayout.clear( ColorA( 0.f, 0.f, 0.f, 0.f ) );
+            calendarLayout.setColor(ColorA(0.,0.,0.,1.));
+        }
+        
+        ::Event *CurrentEvent;
+        ICalendar::Query SearchQuery(mTimeEditCalendar);
+        
+        SearchQuery.Criteria.From.SetToNow();
+        SearchQuery.Criteria.From[HOUR] = 0;
+        SearchQuery.Criteria.From[MINUTE] = 0;
+        SearchQuery.Criteria.From[SECOND] = 0;
+        SearchQuery.Criteria.To.SetToNow();
+        SearchQuery.Criteria.To[DAY] += 31;
+        SearchQuery.Criteria.To[HOUR] = 0;
+        SearchQuery.Criteria.To[MINUTE] = 0;
+        SearchQuery.Criteria.To[SECOND] = 0;
+        
+        SearchQuery.ResetPosition();
+        
+        Surface8u calendarRendered;
+        
+        int calendarItemCount = 0;
+        int calendarDaysCount = 0;
+        Date lastDate;
+        lastDate.SetToNow();
+        lastDate[DAY] -= 2;
+        
+        while ((CurrentEvent = SearchQuery.GetNextEvent(false)) != NULL) {
+            
+            if(lastDate[DAY] != CurrentEvent->DtStart[DAY] || lastDate[MONTH] != CurrentEvent->DtStart[MONTH]){
+                string dayString;
+                calendarDaysCount++;
+                Date now;
+                now.SetToNow();
+                if(now[DAY] == CurrentEvent->DtStart[DAY] && now[MONTH] == CurrentEvent->DtStart[MONTH]){
+                    dayString.append("Today");
+                } else {
+                    char TempDay[10];
+                    sprintf(TempDay, "%.2d/%.2d/%4d", CurrentEvent->DtStart[DAY]+0, CurrentEvent->DtStart[MONTH]+0, CurrentEvent->DtStart[YEAR]+0);
+                    boost::gregorian::date date(CurrentEvent->DtStart[YEAR]+0, CurrentEvent->DtStart[MONTH]+0, CurrentEvent->DtStart[DAY]+0);
+
+                    switch (date.day_of_week()) {
+                        case 0:
+                            dayString.append("Sunday ");
+                            break;
+                        case 1:
+                            dayString.append("Monday ");
+                            break;
+                        case 2:
+                            dayString.append("Tuesday ");
+                            break;
+                        case 3:
+                            dayString.append("Wednesday ");
+                            break;
+                        case 4:
+                            dayString.append("Thursday ");
+                            break;
+                        case 5:
+                            dayString.append("Friday ");
+                            break;
+                        case 6:
+                            dayString.append("Saturday ");
+                            break;
+                    }
+                    dayString.append(TempDay,10);
+                }
+                if(calendarItemCount > 0){
+                    calendarLayout.setFont(mTagFont);
+                    calendarLayout.addLine(" ");
+                }
+                calendarLayout.setFont(mParagraphFontBold);
+                calendarLayout.addLine(dayString);
+                calendarLayout.setFont(mTagFont);
+                calendarLayout.setLeadingOffset(-mTagFont.getSize()*0.5);
+                calendarLayout.addLine("_____________________________________________________________________________________________________________________________________");
+                calendarLayout.setLeadingOffset(mTagFont.getSize()*0.5);
+                lastDate = CurrentEvent->DtStart;
+            }
+            
+            std::string calendarLine;
+            char Temp[13];
+            sprintf(Temp, "%.2d:%.2d - %.2d:%.2d", CurrentEvent->DtStart[HOUR]+0, CurrentEvent->DtStart[MINUTE]+0, CurrentEvent->DtEnd[HOUR]+0, CurrentEvent->DtEnd[MINUTE]+0 );
+            calendarLine.append(Temp, 13);
+            calendarLine.append("\t");
+            std::string summaryStr(CurrentEvent->Summary);
+            summaryStr = std::regex_replace (summaryStr, std::regex("\n"),"");
+            summaryStr = std::regex_replace (summaryStr, std::regex("\r"),"");
+            summaryStr = std::regex_replace (summaryStr, std::regex("\\\\)"),"");
+            summaryStr = std::regex_replace (summaryStr, std::regex("(.*)Activity:"),"");
+            summaryStr = std::regex_replace (summaryStr, std::regex("(.*), "),"");
+            summaryStr = std::regex_replace (summaryStr, std::regex(" - (.*)"),"");
+            
+            calendarLine.append(summaryStr);
+            
+            calendarLayout.setFont(mParagraphFont);
+            calendarLayout.addLine(calendarLine);
+            calendarItemCount++;
+            if(calendarItemCount > 3 || calendarDaysCount > 2) break;
+            
+        }
+        
+        if(calendarItemCount > 0){
+            
+            
+            TextLayout calendarHeaderLayout;
+            
+            if(now->tm_mon == 11){ // it's december
+                calendarHeaderLayout.clear( ColorA( 1.f, 1.f, 1.f, 0.f ) );
+                calendarHeaderLayout.setColor(ColorA(1.,1.,1.,1.));
+            } else {
+                calendarHeaderLayout.clear( ColorA( 0.f, 0.f, 0.f, 0.f ) );
+                calendarHeaderLayout.setColor(ColorA(0.,0.,0.,1.));
+            }
+            
+
+            calendarHeaderLayout.setFont( mHeaderFont );
+            calendarHeaderLayout.addLine("Upcoming Lab Bookings");
+            calendarHeaderLayout.addLine(" ");
+            
+            calendarHeaderLayout.setFont( mParagraphFont );
+            calendarHeaderLayout.addLine("To request a booking of the lab");
+            calendarHeaderLayout.addLine("please send a mail to intermedia@itu.dk");
+            
+            Surface8u rendered = calendarHeaderLayout.render(true, PREMULT);
+            gl::draw(  gl::Texture::create( rendered ), vec2(margin, margin));
+            
+            TextBox commentBox;
+            commentBox.setSize(ivec2((getWindowWidth()/3.)-(2*margin), getWindowHeight()-(2*margin) ));
+            commentBox.setFont( mSmallFont );
+            if(now->tm_mon == 11) // it's december
+                commentBox.setColor(ColorA(1.,1.,1.,1.));
+            else
+                commentBox.setColor(ColorA(0.,0.,0.,1.));
+            commentBox.setText("Bookings are provided by a query for room 0A17 to the IT University TimeEdit system.");
+            
+            vec2 commentMeasure = commentBox.measure();
+            
+            Surface8u renderedComments = commentBox.render();
+            gl::draw(  gl::Texture::create( renderedComments ), vec2((getWindowWidth()/3.)+margin, getWindowHeight()-(margin+commentMeasure.y)+mHeaderFont.getDescent()));
+            
+            calendarRendered = calendarLayout.render( true, PREMULT );
+            gl::draw(  gl::Texture::create( calendarRendered ), vec2((getWindowWidth()/3.)+margin, margin));
+        }
     }
     
     // ITU LOGO
@@ -1326,6 +1561,7 @@ CINDER_APP( AtriumDisplayApp, RendererGl(), [&]( App::Settings *settings ) {
     settings->setResizable( false );
     settings->setPowerManagementEnabled(false);
     settings->setAlwaysOnTop();
+    //settings->setHighDensityDisplayEnabled(true);
     
     for(int i = 0; i < Display::getDisplays().size(); i++){
         shared_ptr<Display> d = Display::getDisplays()[i];
@@ -1334,6 +1570,8 @@ CINDER_APP( AtriumDisplayApp, RendererGl(), [&]( App::Settings *settings ) {
             settings->setDisplay(d);
             settings->setWindowSize(d->getSize());
             settings->setFullScreen( true );
+            //settings->setHighDensityDisplayEnabled(false);
+            
             //            settings->setFrameRate(30.f);
         }
     }

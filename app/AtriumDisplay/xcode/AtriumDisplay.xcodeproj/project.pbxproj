@@ -43,6 +43,9 @@
 		729D4338EC8E420FB657CA29 /* b2PrismaticJoint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8FFFA39CB0C3470992EC8B5F /* b2PrismaticJoint.cpp */; };
 		73C8E117D9D8409199A6EB79 /* b2CollidePolygon.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1E2405F00BA342FBBAA2D984 /* b2CollidePolygon.cpp */; };
 		79A88637DC5B46A1AC88ED17 /* b2WheelJoint.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 716732E6935249FD9B0AC441 /* b2WheelJoint.cpp */; };
+		7A1EAC7D1E55E47900AA82DA /* date.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A1EAC6F1E55E47900AA82DA /* date.cpp */; };
+		7A1EAC7F1E55E47900AA82DA /* icalendar.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A1EAC721E55E47900AA82DA /* icalendar.cpp */; };
+		7A1EAC841E55E47900AA82DA /* types.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A1EAC781E55E47900AA82DA /* types.cpp */; };
 		7A5B4D201D6DA52500C5B856 /* IOSurface.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A5B4D1F1D6DA52500C5B856 /* IOSurface.framework */; };
 		7A5B4D221D6DA52B00C5B856 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A5B4D211D6DA52B00C5B856 /* IOKit.framework */; };
 		7A5B4D241D6DA53700C5B856 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A5B4D231D6DA53700C5B856 /* CoreMedia.framework */; };
@@ -166,6 +169,12 @@
 		716732E6935249FD9B0AC441 /* b2WheelJoint.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; name = b2WheelJoint.cpp; path = ../blocks/Box2D/src/Box2D/Dynamics/Joints/b2WheelJoint.cpp; sourceTree = "<group>"; };
 		73566BBA414149B7842D0BA9 /* b2CircleShape.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; name = b2CircleShape.cpp; path = ../blocks/Box2D/src/Box2D/Collision/Shapes/b2CircleShape.cpp; sourceTree = "<group>"; };
 		750B4EAC11AC402A95C13A25 /* b2BroadPhase.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; name = b2BroadPhase.cpp; path = ../blocks/Box2D/src/Box2D/Collision/b2BroadPhase.cpp; sourceTree = "<group>"; };
+		7A1EAC6F1E55E47900AA82DA /* date.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = date.cpp; sourceTree = "<group>"; };
+		7A1EAC701E55E47900AA82DA /* date.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = date.h; sourceTree = "<group>"; };
+		7A1EAC721E55E47900AA82DA /* icalendar.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = icalendar.cpp; sourceTree = "<group>"; };
+		7A1EAC741E55E47900AA82DA /* icalendar.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = icalendar.h; sourceTree = "<group>"; };
+		7A1EAC781E55E47900AA82DA /* types.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = types.cpp; sourceTree = "<group>"; };
+		7A1EAC791E55E47900AA82DA /* types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
 		7A21F6F143374C538AFDBB75 /* b2EdgeAndPolygonContact.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; name = b2EdgeAndPolygonContact.cpp; path = ../blocks/Box2D/src/Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.cpp; sourceTree = "<group>"; };
 		7A5B4D1F1D6DA52500C5B856 /* IOSurface.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOSurface.framework; path = System/Library/Frameworks/IOSurface.framework; sourceTree = SDKROOT; };
 		7A5B4D211D6DA52B00C5B856 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
@@ -558,6 +567,20 @@
 			name = Box2D;
 			sourceTree = "<group>";
 		};
+		7A1EAC6C1E55E47900AA82DA /* icalendarlib */ = {
+			isa = PBXGroup;
+			children = (
+				7A1EAC6F1E55E47900AA82DA /* date.cpp */,
+				7A1EAC701E55E47900AA82DA /* date.h */,
+				7A1EAC721E55E47900AA82DA /* icalendar.cpp */,
+				7A1EAC741E55E47900AA82DA /* icalendar.h */,
+				7A1EAC781E55E47900AA82DA /* types.cpp */,
+				7A1EAC791E55E47900AA82DA /* types.h */,
+			);
+			name = icalendarlib;
+			path = ../contrib/icalendarlib;
+			sourceTree = "<group>";
+		};
 		7F80E9EE178E16E100826820 /* fonts */ = {
 			isa = PBXGroup;
 			children = (
@@ -603,6 +626,7 @@
 		A505CE0D179443A900557C27 /* Contrib */ = {
 			isa = PBXGroup;
 			children = (
+				7A1EAC6C1E55E47900AA82DA /* icalendarlib */,
 				A505CE0E179443BA00557C27 /* yaml-cpp */,
 			);
 			name = Contrib;
@@ -926,9 +950,11 @@
 				A505CE94179443BA00557C27 /* graphbuilderadapter.cpp in Sources */,
 				A505CE95179443BA00557C27 /* convert.cpp in Sources */,
 				A505CE96179443BA00557C27 /* directives.cpp in Sources */,
+				7A1EAC7D1E55E47900AA82DA /* date.cpp in Sources */,
 				A505CE97179443BA00557C27 /* emit.cpp in Sources */,
 				A505CE98179443BA00557C27 /* emitfromevents.cpp in Sources */,
 				A505CE99179443BA00557C27 /* emitter.cpp in Sources */,
+				7A1EAC7F1E55E47900AA82DA /* icalendar.cpp in Sources */,
 				A505CE9A179443BA00557C27 /* emitterstate.cpp in Sources */,
 				A505CE9B179443BA00557C27 /* emitterutils.cpp in Sources */,
 				A505CE9C179443BA00557C27 /* exp.cpp in Sources */,
@@ -944,6 +970,7 @@
 				A505CEA6179443BA00557C27 /* regex.cpp in Sources */,
 				A505CEA7179443BA00557C27 /* scanner.cpp in Sources */,
 				A505CEA8179443BA00557C27 /* scanscalar.cpp in Sources */,
+				7A1EAC841E55E47900AA82DA /* types.cpp in Sources */,
 				A505CEA9179443BA00557C27 /* scantag.cpp in Sources */,
 				A505CEAA179443BA00557C27 /* scantoken.cpp in Sources */,
 				A505CEAB179443BA00557C27 /* simplekey.cpp in Sources */,
