@@ -46,6 +46,8 @@
 		7A1EAC7D1E55E47900AA82DA /* date.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A1EAC6F1E55E47900AA82DA /* date.cpp */; };
 		7A1EAC7F1E55E47900AA82DA /* icalendar.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A1EAC721E55E47900AA82DA /* icalendar.cpp */; };
 		7A1EAC841E55E47900AA82DA /* types.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7A1EAC781E55E47900AA82DA /* types.cpp */; };
+		7A56A6331E5732FA006EC439 /* timeedit_tmp.ics in Resources */ = {isa = PBXBuildFile; fileRef = 7A56A6311E5732FA006EC439 /* timeedit_tmp.ics */; };
+		7A56A6341E5732FA006EC439 /* timeedit.ics in Resources */ = {isa = PBXBuildFile; fileRef = 7A56A6321E5732FA006EC439 /* timeedit.ics */; };
 		7A5B4D201D6DA52500C5B856 /* IOSurface.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A5B4D1F1D6DA52500C5B856 /* IOSurface.framework */; };
 		7A5B4D221D6DA52B00C5B856 /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A5B4D211D6DA52B00C5B856 /* IOKit.framework */; };
 		7A5B4D241D6DA53700C5B856 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A5B4D231D6DA53700C5B856 /* CoreMedia.framework */; };
@@ -176,6 +178,8 @@
 		7A1EAC781E55E47900AA82DA /* types.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = types.cpp; sourceTree = "<group>"; };
 		7A1EAC791E55E47900AA82DA /* types.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
 		7A21F6F143374C538AFDBB75 /* b2EdgeAndPolygonContact.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.cpp; name = b2EdgeAndPolygonContact.cpp; path = ../blocks/Box2D/src/Box2D/Dynamics/Contacts/b2EdgeAndPolygonContact.cpp; sourceTree = "<group>"; };
+		7A56A6311E5732FA006EC439 /* timeedit_tmp.ics */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = timeedit_tmp.ics; path = ../resources/timeedit_tmp.ics; sourceTree = "<group>"; };
+		7A56A6321E5732FA006EC439 /* timeedit.ics */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = timeedit.ics; path = ../resources/timeedit.ics; sourceTree = "<group>"; };
 		7A5B4D1F1D6DA52500C5B856 /* IOSurface.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOSurface.framework; path = System/Library/Frameworks/IOSurface.framework; sourceTree = SDKROOT; };
 		7A5B4D211D6DA52B00C5B856 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		7A5B4D231D6DA53700C5B856 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
@@ -475,6 +479,8 @@
 		29B97317FDCFA39411CA2CEA /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				7A56A6311E5732FA006EC439 /* timeedit_tmp.ics */,
+				7A56A6321E5732FA006EC439 /* timeedit.ics */,
 				A505CEC0179444C700557C27 /* config.yaml */,
 				7F80E9EE178E16E100826820 /* fonts */,
 				B02C54C2A54E425AB6434847 /* CinderApp.icns */,
@@ -874,8 +880,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A56A6341E5732FA006EC439 /* timeedit.ics in Resources */,
 				B82919CAF1C3440881BE47B9 /* CinderApp.icns in Resources */,
 				7F80E9F9178E16E100826820 /* OpenSans-Bold.ttf in Resources */,
+				7A56A6331E5732FA006EC439 /* timeedit_tmp.ics in Resources */,
 				7F80E9FA178E16E100826820 /* OpenSans-BoldItalic.ttf in Resources */,
 				7F80E9FB178E16E100826820 /* OpenSans-ExtraBold.ttf in Resources */,
 				7F80E9FC178E16E100826820 /* OpenSans-ExtraBoldItalic.ttf in Resources */,

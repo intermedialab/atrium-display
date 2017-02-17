@@ -402,6 +402,8 @@ public:
     YAML::Node              configYaml;
     
     ICalendar               *mTimeEditCalendar;
+    fs::path                mTimeEditCalendarFile;
+    fs::path                mTimeEditCalendarTmpFile;
     
     fs::path                configResourcePath;
     
@@ -484,10 +486,12 @@ void AtriumDisplayApp::setup()
     mStripesSquareness = 1;
     mStripesPosition = vec2(0,0);
     
-    mTimeEditCalendar = new ICalendar(std::string("tmp_").append(fs::path(RES_CUSTOM_ICS_FILE).generic_string()).c_str());
-    
     readConfig();
     
+    configResourcePath = fs::path(expand_user(configYaml["resourcePath"].as<std::string>()));
+    
+    mTimeEditCalendar = new ICalendar(mTimeEditCalendarTmpFile.string().c_str());
+
     triggerTransition();
     
 }
@@ -546,7 +550,7 @@ void AtriumDisplayApp::update()
                     try {
                         
                         std::string iCalStr = loadString(loadUrl("http://intermedia.itu.dk/public/calendar/timeEditIcs.php"));
-                        std::string myPath = RES_CUSTOM_ICS_FILE;
+                        std::string myPath = mTimeEditCalendarFile.string();
                         
                         // Get an ofstream which is what you'll use to write to your file.
                         std::ofstream oStream( myPath );
@@ -555,7 +559,7 @@ void AtriumDisplayApp::update()
                         oStream << iCalStr;
                         oStream.close();
                         
-                        ICalendar tmpCalendar(fs::path(RES_CUSTOM_ICS_FILE).generic_string().c_str());
+                        ICalendar tmpCalendar(mTimeEditCalendarFile.string().c_str());
                         
                         ::Event *CurrentEvent;
                         ICalendar::Query SearchQuery(&tmpCalendar);
@@ -565,18 +569,19 @@ void AtriumDisplayApp::update()
                         SearchQuery.Criteria.From[MINUTE] = 0;
                         SearchQuery.Criteria.From[SECOND] = 0;
                         SearchQuery.Criteria.To.SetToNow();
-                        SearchQuery.Criteria.To[DAY] += 31;
+                        SearchQuery.Criteria.To[MONTH] += 6;
                         SearchQuery.Criteria.To[HOUR] = 0;
                         SearchQuery.Criteria.To[MINUTE] = 0;
                         SearchQuery.Criteria.To[SECOND] = 0;
                         
                         SearchQuery.ResetPosition();
                         
-                        string tmpCalendarfileName = std::string("tmp_").append(fs::path(RES_CUSTOM_ICS_FILE).generic_string());
-                        delete mTimeEditCalendar;
-                        remove(tmpCalendarfileName.c_str());
                         
-                        mTimeEditCalendar = new ICalendar(tmpCalendarfileName.c_str());
+                        delete mTimeEditCalendar;
+                        
+                        fs::remove(mTimeEditCalendarTmpFile);
+                        
+                        mTimeEditCalendar = new ICalendar(mTimeEditCalendarTmpFile.string().c_str());
                         
                         while ((CurrentEvent = SearchQuery.GetNextEvent(false)) != NULL) {
                             //Correct for missing time zone
@@ -1381,7 +1386,15 @@ bool AtriumDisplayApp::readConfig(){
             {
                 
                 if ( fs::is_directory(*resIt) ){
-                    if (resIt->filename() == "projects" ){
+                    if (resIt->filename() == "calendar" ){
+                    
+                        mTimeEditCalendarFile = resIt->string();
+                        mTimeEditCalendarFile += "/timeEdit.ics";
+                        mTimeEditCalendarTmpFile = resIt->string();
+                        mTimeEditCalendarTmpFile += "/timeEditTmp.ics";
+
+                        
+                    } else if (resIt->filename() == "projects" ){
                         
                         // projects are loaded in reverse cronological order
                         
