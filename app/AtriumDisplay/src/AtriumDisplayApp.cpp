@@ -1069,20 +1069,6 @@ void AtriumDisplayApp::draw()
                             mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_end").getValue<float>();
                             break;
                         }
-                        
-                        //FIXME: Last subtitle keeps hanging 
-                        
-                        if(subtitle.getChild("timestamp_end").getValue<float>() > currentMovieTime){
-                            // after a subtitle (should only trigger after last title)
-                            string subtitleString = "";
-                            TextBox subtitleBox;
-                            subtitleBox.setColor(ColorA(1.,1.,1.,1.));
-                            subtitleBox.setFont(mParagraphFont);
-                            subtitleBox.setText(subtitleString);
-                            mMovieSubtitlesSurface = subtitleBox.render();
-                            mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_begin").getValue<float>();
-                            break;
-                        }
                         if(subtitle.getChild("timestamp_begin").getValue<float>() > currentMovieTime){
                             // before a subtitle
                             string subtitleString = "";
@@ -1092,6 +1078,18 @@ void AtriumDisplayApp::draw()
                             subtitleBox.setText(subtitleString);
                             mMovieSubtitlesSurface = subtitleBox.render();
                             mMovieSubtitlesNextSubTime = subtitle.getChild("timestamp_begin").getValue<float>();
+                            break;
+                        }
+                        if(subtitle.getChild("timestamp_end").getValue<float>() < currentMovieTime &&
+                           subtitle.getChild("timestamp_end").getValue<float>() == mMovieSubtitles[mMovieSubtitles.getNumChildren()-1].getChild("timestamp_end").getValue<float>()){
+                            // after a subtitle (should only trigger after last title)
+                            string subtitleString = "";
+                            TextBox subtitleBox;
+                            subtitleBox.setColor(ColorA(1.,1.,1.,1.));
+                            subtitleBox.setFont(mParagraphFont);
+                            subtitleBox.setText(subtitleString);
+                            mMovieSubtitlesSurface = subtitleBox.render();
+                            mMovieSubtitlesNextSubTime = mMovie->getDuration();
                             break;
                         }
                     }
@@ -1112,6 +1110,7 @@ void AtriumDisplayApp::draw()
                     gl::draw(  gl::Texture::create( mMovieSubtitlesSurface ), vec2((getWindowWidth()/3.f)+(margin*1.25), (getWindowHeight()-(margin+(subtitleRect.getHeight()/2.)+(mMovieSubtitlesSurface.getHeight()/2.)))));
                 }
             }
+            
             // duration clock
             
             Rectf timeLineRect = Rectf(mLogoTexture->getBounds());
