@@ -1323,12 +1323,18 @@ void AtriumDisplayApp::draw()
 
             calendarHeaderLayout.setFont( mHeaderFont );
             calendarHeaderLayout.addLine("Upcoming Lab Bookings");
-            calendarHeaderLayout.addLine(" ");
-            
             calendarHeaderLayout.setFont( mParagraphFont );
-            calendarHeaderLayout.addLine("To request a booking of the lab");
+            calendarHeaderLayout.addLine(" ");
+            calendarHeaderLayout.addLine("Intermedia Lab is not a classroom,");
+            calendarHeaderLayout.addLine("and outside these scheduled activities");
+            calendarHeaderLayout.addLine("the lab remains open for everyone");
+            calendarHeaderLayout.addLine("with a project in the space.");
+            calendarHeaderLayout.setFont( mParagraphFont );
+            calendarHeaderLayout.addLine(" ");
+            calendarHeaderLayout.addLine("To request access to the lab or to book a relevant activity");
             calendarHeaderLayout.addLine("please send a mail to intermedia@itu.dk");
-            
+
+                                         
             Surface8u rendered = calendarHeaderLayout.render(true, PREMULT);
             gl::draw(  gl::Texture::create( rendered ), vec2(margin, margin));
             
